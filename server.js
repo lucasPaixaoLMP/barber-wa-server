@@ -1,0 +1,182 @@
+const express = require('express');
+const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { Boom } = require('@hapi/boom');
+const qrcode = require('qrcode');
+const cors = require('cors');
+
+const app = express();
+app.use(express.json());
+app.use(cors());
+
+// ── Segurança: API Key simples ──
+const API_KEY = process.env.API_KEY || 'barberapp2024';
+
+function authMiddleware(req, res, next) {
+  const key = req.headers['x-api-key'] || req.query.apikey;
+  if (key !== API_KEY) return res.status(401).json({ error: 'Unauthorized' });
+  next();
+}
+
+let sock = null;
+let qrCodeData = null;
+let isConnected = false;
+let connectingNow = false;
+
+async function connectToWhatsApp() {
+  if (connectingNow) return;
+  connectingNow = true;
+  try {
+    const { state, saveCreds } = await useMultiFileAuthState('auth_baileys');
+    const { version } = await fetchLatestBaileysVersion();
+
+    sock = makeWASocket({
+      version,
+      auth: state,
+      printQRInTerminal: true,
+      browser: ['Barber App', 'Chrome', '1.0'],
+      connectTimeoutMs: 60_000,
+      defaultQueryTimeoutMs: 60_000,
+      keepAliveIntervalMs: 25_000,
+    });
+
+    sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
+
+      if (qr) {
+        console.log('[WA] QR code gerado — acesse / para escanear');
+        qrCodeData = await qrcode.toDataURL(qr);
+        isConnected = false;
+      }
+
+      if (connection === 'close') {
+        isConnected = false;
+        connectingNow = false;
+        const code = new Boom(lastDisconnect?.error)?.output?.statusCode;
+        const reason = DisconnectReason;
+        if (code === reason.loggedOut) {
+          console.log('[WA] Desconectado — faça login novamente em /');
+        } else {
+          console.log('[WA] Reconectando em 5s... (código:', code, ')');
+          setTimeout(connectToWhatsApp, 5000);
+        }
+      }
+
+      if (connection === 'open') {
+        console.log('[WA] ✅ Conectado com sucesso!');
+        isConnected = true;
+        qrCodeData = null;
+        connectingNow = false;
+      }
+    });
+
+    sock.ev.on('creds.update', saveCreds);
+
+  } catch (e) {
+    connectingNow = false;
+    console.error('[WA] Erro ao conectar:', e);
+    setTimeout(connectToWhatsApp, 10000);
+  }
+}
+
+// ── Página inicial: QR Code ──
+app.get('/', (req, res) => {
+  if (isConnected) {
+    return res.send(`<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Barber WA Server</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0a0a0a;color:#e6e6e6}
+.box{text-align:center;padding:40px;background:#111;border-radius:16px;border:1px solid #25D366}
+.icon{font-size:64px;margin-bottom:16px}.title{font-size:22px;color:#25D366;font-weight:600;margin-bottom:8px}
+.sub{font-size:14px;color:#888}</style></head>
+<body><div class="box"><div class="icon">✅</div>
+<div class="title">WhatsApp Conectado!</div>
+<div class="sub">Seu servidor Barber App está funcionando.<br>Pode fechar esta aba.</div>
+</div></body></html>`);
+  }
+
+  if (qrCodeData) {
+    return res.send(`<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Conectar WhatsApp</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="30">
+<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0a0a0a;color:#e6e6e6}
+.box{text-align:center;padding:40px 30px;background:#111;border-radius:16px;max-width:380px}
+h2{color:#25D366;margin-bottom:8px}p{font-size:13px;color:#888;margin-bottom:20px;line-height:1.7}
+img{border-radius:12px;border:3px solid #25D366;max-width:260px}
+.step{background:#1a1a1a;border-radius:10px;padding:10px 14px;margin-top:16px;font-size:12px;color:#aaa;text-align:left;line-height:2}
+.refresh{margin-top:20px;font-size:12px;color:#555}</style></head>
+<body><div class="box">
+  <h2>📲 Escanear QR Code</h2>
+  <p>Conecte seu WhatsApp ao servidor<br>do Barber App</p>
+  <img src="${qrCodeData}" alt="QR Code"/>
+  <div class="step">
+    1️⃣ Abra o <b>WhatsApp</b> no celular<br>
+    2️⃣ Toque em <b>Aparelhos conectados</b><br>
+    3️⃣ Toque em <b>Conectar aparelho</b><br>
+    4️⃣ Aponte a câmera para o QR Code
+  </div>
+  <div class="refresh">Página atualiza automaticamente a cada 30s</div>
+</div></body></html>`);
+  }
+
+  return res.send(`<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Aguardando...</title>
+<meta http-equiv="refresh" content="5"></head>
+<body style="font-family:sans-serif;background:#0a0a0a;color:#eee;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0">
+<div style="text-align:center"><p style="font-size:18px">⏳ Gerando QR code...</p>
+<p style="color:#666;font-size:13px">Aguarde alguns segundos</p></div>
+</body></html>`);
+});
+
+// ── Status ──
+app.get('/status', (req, res) => {
+  res.json({ connected: isConnected, hasQR: !!qrCodeData, server: 'Barber WA Server v1.0' });
+});
+
+// ── Enviar mensagem ──
+app.post('/send', authMiddleware, async (req, res) => {
+  const { phone, message } = req.body;
+  if (!phone || !message) {
+    return res.status(400).json({ error: 'phone e message são obrigatórios' });
+  }
+  if (!isConnected) {
+    return res.status(503).json({ error: 'WhatsApp não conectado. Acesse / para reconectar.' });
+  }
+
+  try {
+    // Normaliza número: garante DDI 55 + apenas dígitos
+    let number = phone.replace(/\D/g, '');
+    if (!number.startsWith('55')) number = '55' + number;
+    const jid = number + '@s.whatsapp.net';
+
+    await sock.sendMessage(jid, { text: message });
+    console.log('[WA] Mensagem enviada para', number);
+    res.json({ success: true, to: number });
+  } catch (e) {
+    console.error('[WA] Erro ao enviar:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Desconectar / resetar sessão ──
+app.post('/logout', authMiddleware, async (req, res) => {
+  try {
+    if (sock) await sock.logout();
+    isConnected = false;
+    qrCodeData = null;
+    res.json({ success: true, message: 'Desconectado. Acesse / para reconectar.' });
+    setTimeout(connectToWhatsApp, 2000);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Start ──
+connectToWhatsApp();
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Barber WA Server rodando na porta ${PORT}`);
+  console.log(`🔑 API Key: ${API_KEY}`);
+  console.log(`📲 Acesse / para escanear o QR Code`);
+});

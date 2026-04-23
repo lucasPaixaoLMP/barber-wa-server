@@ -1,0 +1,1495 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Barber App</title>
+</head>
+<body>
+<link rel="stylesheet" href="style.css">
+
+<h2 style="position:absolute;left:-9999px">Barber King — App de agendamento elegante com autenticação, histórico e painel admin</h2>
+
+<div class="frame" id="app">
+
+  <!-- AUTH -->
+  <div class="view active" id="v-auth">
+    <div class="auth-bg"></div>
+    <div class="auth-brand animate-up" id="auth-brand">
+      <span class="auth-scissors">✦</span>
+      <div id="auth-logo-wrap">
+        <span class="auth-name" id="auth-logo-text">BARBER APP</span>
+        <img id="auth-logo-img" style="display:none;max-height:150px;max-width:200px;object-fit:contain;filter:brightness(1.2)" src="" alt="Logo"/>
+      </div>
+    </div>
+    <div class="auth-card animate-up delay-1">
+      <div class="auth-label">Bem-vindo</div>
+      <div class="auth-title">Informe seu número<br>para continuar</div>
+      <div class="phone-input-wrap">
+        <span class="phone-flag">🇧🇷</span>
+        <span class="phone-cc">+55</span>
+        <input class="phone-field" type="tel" placeholder="(11) 99999-9999" id="auth-phone" oninput="fmtPhone(this)" maxlength="15"/>
+      </div>
+      <button class="btn btn-gold animate-up delay-2" id="auth-btn" onclick="doAuth()" disabled>Entrar</button>
+      <p class="auth-note animate-up delay-3">Seu número é sua identidade.<br>Sem senha, sem complicação.</p>
+    </div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div class="view" id="v-main">
+    <div class="topbar">
+      <div class="tb-logo" id="topbar-logo-wrap">
+        <span id="topbar-logo-text">✦ BARBER APP</span>
+        <img id="topbar-logo-img" style="display:none;max-height:90px;max-width:120px;object-fit:contain;vertical-align:middle;filter:brightness(1.2)" src="" alt="Logo"/>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="sairApp()" style="background:transparent;border:0.5px solid rgba(255,255,255,0.08);border-radius:8px;color:var(--txt3);font-size:11px;padding:6px 10px;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s" onmouseover="this.style.borderColor='rgba(224,85,85,0.3)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.08)';this.style.color='var(--txt3)'">← Sair</button>
+        <div class="tb-user">
+          <div class="tb-avatar" id="tb-initials">?</div>
+        </div>
+      </div>
+    </div>
+    <div id="step-bar-wrap"></div>
+    <div id="step-content"></div>
+    <div class="bottom-nav">
+      <button class="bnav-item active" id="bn-book" onclick="switchTab('book')">
+        <span class="bnav-icon">📅</span>Agendar
+      </button>
+      <button class="bnav-item" id="bn-my" onclick="switchTab('my')">
+        <span class="bnav-icon">🕐</span>Meus
+      </button>
+    </div>
+  </div>
+
+  <!-- ADMIN LOGIN (separate overlay) -->
+  <div class="view" id="v-adm-login">
+    <div class="admin-login">
+      <div class="adm-logo animate-up">
+        <span class="adm-logo-icon">✦</span>
+        <div class="adm-logo-name">BARBER APP</div>
+        <span class="adm-logo-sub">Painel Administrativo</span>
+      </div>
+      <div class="adm-card animate-up delay-1">
+        <div class="adm-card-title">Acesso restrito — credenciais do administrador</div>
+        <div class="adm-error" id="adm-err">Usuário ou senha incorretos.</div>
+        <div class="form-group">
+          <label class="form-label">Usuário</label>
+          <input class="form-input" type="text" id="adm-user" placeholder="admin" autocomplete="off"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Senha</label>
+          <input class="form-input" type="password" id="adm-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doAdmLogin()"/>
+        </div>
+        <button class="btn btn-gold" onclick="doAdmLogin()">Entrar no painel</button>
+        <button class="btn btn-ghost" style="margin-top:8px" onclick="goView('auth');resetBooking()">← Voltar ao app</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN PANEL -->
+  <div class="view" id="v-adm-panel">
+    <div class="admin-panel">
+      <div class="admin-topbar">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:17px;color:var(--gold)">Painel Admin</div>
+        <button class="logout-btn" onclick="admLogout()">Sair</button>
+      </div>
+      <div class="admin-tabs">
+        <button class="atab active" onclick="admTab('agenda',this)">Agenda</button>
+        <button class="atab" onclick="admTab('barbeiros',this)">Barbeiros</button>
+        <button class="atab" onclick="admTab('servicos',this)">Serviços</button>
+        <button class="atab" onclick="admTab('relatorios',this)">📊 Relatórios</button>
+        <button class="atab" onclick="admTab('config',this)">⚙ Config</button>
+      </div>
+      <div class="admin-body" id="adm-body"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="modal" style="display:none" onclick="closeModal(event)">
+  <div class="modal-sheet" id="modal-sheet">
+    <button class="modal-close" onclick="closeModalDirect()">×</button>
+    <div class="modal-title" id="modal-title">Editar</div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- CANCEL CONFIRM -->
+<div class="modal-overlay" id="cancel-modal" style="display:none" onclick="closeCancelModal(event)">
+  <div class="modal-sheet" id="cancel-sheet">
+    <div class="modal-title">Cancelar agendamento?</div>
+    <p style="font-size:13px;color:var(--txt2);margin-bottom:8px;font-weight:300;line-height:1.6">O horário será liberado para outros clientes. Esta ação não pode ser desfeita.</p>
+    <div id="cancel-booking-info" style="background:var(--bg3);border-radius:10px;padding:10px 14px;margin-bottom:18px;font-size:12px;color:var(--txt2);line-height:1.8;font-weight:300"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <button class="btn btn-outline" onclick="closeCancelModal()" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px">
+        <span style="font-size:18px">N</span> Não, manter
+      </button>
+      <button class="btn btn-danger" id="cancel-confirm-btn" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px">
+        <span style="font-size:18px">S</span> Sim, cancelar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDKs (apenas App + Firestore — sem Functions, sem Analytics) -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<script>
+// ══════════════════════════════════════════════════════
+// ⚙  FIREBASE CONFIG — Substitua com as suas credenciais
+// Obtenha em: console.firebase.google.com → Configurações do projeto
+// ══════════════════════════════════════════════════════
+const firebaseConfig = {
+  apiKey:            "AIzaSyASZNA5sGDYMobAmfmBiTBG0fDWEUAhQ7o",
+  authDomain:        "barber-app2026.firebaseapp.com",
+  projectId:         "barber-app2026",
+  storageBucket:     "barber-app2026.firebasestorage.app",
+  messagingSenderId: "95138754642",
+  appId:             "1:95138754642:web:ab2c3e525e48711457ef8b",
+  // measurementId removido — Analytics não usado no plano gratuito
+};
+firebase.initializeApp(firebaseConfig);
+const fdb = firebase.firestore();
+
+// ── CONSTANTES ──
+const ADM_USER='admin', ADM_PASS='admin2024';
+const NO_SHOW_GRACE_MIN = 20; // minutos de tolerância antes de marcar como Realizado
+const MES=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const DOW=['D','S','T','Q','Q','S','S'];
+// Configuração de agenda (sobrescrita pelo Firestore config/schedule)
+let scheduleConfig = {
+  workDays: [1,2,3,4,5,6],   // 0=Dom…6=Sáb (padrão: Seg–Sáb)
+  startTime: '08:00',
+  endTime:   '19:00',
+  lunchStart:'12:00',
+  lunchEnd:  '13:00',
+  slotMin:   30,
+  holidays:  []               // ['YYYY-MM-DD', ...]
+};
+
+// Gera horários dinamicamente com base no config
+function generateTimes(cfg){
+  const times=[];
+  const [sh,sm]=cfg.startTime.split(':').map(Number);
+  const [eh,em]=cfg.endTime.split(':').map(Number);
+  const [lsh,lsm]=cfg.lunchStart.split(':').map(Number);
+  const [leh,lem]=cfg.lunchEnd.split(':').map(Number);
+  const startMin=sh*60+sm, endMin=eh*60+em;
+  const lunchStartMin=lsh*60+lsm, lunchEndMin=leh*60+lem;
+  for(let t=startMin; t<endMin; t+=cfg.slotMin){
+    if(t>=lunchStartMin && t<lunchEndMin) continue;
+    const hh=String(Math.floor(t/60)).padStart(2,'0');
+    const mm=String(t%60).padStart(2,'0');
+    times.push(hh+':'+mm);
+  }
+  return times;
+}
+
+// Mantém retrocompatibilidade — será recalculado em st3()
+const TIMES_DEFAULT=['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00','16:30','17:00','17:30','18:00','18:30'];
+
+let cM=new Date().getMonth(), cY=new Date().getFullYear();
+let DB={barbers:[],services:[],bookings:[]};
+let S={step:1,barber:null,svc:null,date:null,time:null,tab:'book',bookingCode:''};
+let currentUser=null, cancelTarget=null, editTarget=null, tempPhoto='', admUnsubscribe=null;
+let appLogoData=''; // base64 ou URL da logo personalizada
+let notifyConfig={barberPhone:'',waServerUrl:'',waServerKey:'barberapp2024',notifyBarberOnBook:true,remindClientsOnDay:true};
+
+// ── LOADING OVERLAY ──
+function showLoading(msg='Carregando...'){
+  let l=document.getElementById('ld');
+  if(!l){
+    l=document.createElement('div');l.id='ld';
+    l.style.cssText='position:fixed;inset:0;background:rgba(6,9,10,0.88);z-index:999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px';
+    l.innerHTML='<div style="width:30px;height:30px;border:2px solid var(--bg5);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite"></div><div id="ld-msg" style="font-size:12px;color:var(--txt3);font-weight:300;letter-spacing:.5px">'+msg+'</div>';
+    document.body.appendChild(l);
+  }else{l.style.display='flex';document.getElementById('ld-msg').textContent=msg;}
+}
+function hideLoading(){const l=document.getElementById('ld');if(l)l.style.display='none';}
+
+// ── SEED DADOS PADRÃO (roda só se Firestore estiver vazio) ──
+async function seedData(){
+  const b=fdb.batch();
+  [
+    {id:'B1',name:'Rafael Silva',spec:'Degradê & Barba',rat:'4.9',photo:'',initials:'RS'},
+    {id:'B2',name:'Carlos Mendes',spec:'Clássico & Navalhado',rat:'5.0',photo:'',initials:'CM'},
+    {id:'B3',name:'Diego Santos',spec:'Skin Fade & Moderno',rat:'4.7',photo:'',initials:'DS'},
+    {id:'B4',name:'Lucas Rocha',spec:'Social & Infantil',rat:'4.8',photo:'',initials:'LR'}
+  ].forEach(({id,...d})=>b.set(fdb.collection('barbers').doc(id),d));
+  [
+    {id:'S1',name:'Corte de cabelo',icon:'✂',dur:'30 min',price:45,photo:''},
+    {id:'S2',name:'Barba completa',icon:'🪒',dur:'25 min',price:35,photo:''},
+    {id:'S3',name:'Corte + Barba',icon:'💈',dur:'50 min',price:70,photo:''},
+    {id:'S4',name:'Degradê',icon:'⚡',dur:'40 min',price:55,photo:''},
+    {id:'S5',name:'Pigmentação',icon:'🎨',dur:'60 min',price:80,photo:''},
+    {id:'S6',name:'Sobrancelha',icon:'👁',dur:'15 min',price:20,photo:''}
+  ].forEach(({id,...d})=>b.set(fdb.collection('services').doc(id),d));
+  await b.commit();
+}
+
+// ── INIT: carrega barbeiros e serviços do Firestore ──
+async function initDB(){
+  showLoading('Carregando...');
+  try{
+    const [bs,ss,cfg,sched,notifyCfg]=await Promise.all([
+      fdb.collection('barbers').get(),
+      fdb.collection('services').get(),
+      fdb.collection('config').doc('app').get(),
+      fdb.collection('config').doc('schedule').get(),
+      fdb.collection('config').doc('notifications').get()
+    ]);
+    DB.barbers=bs.docs.map(d=>({id:d.id,...d.data()}));
+    DB.services=ss.docs.map(d=>({id:d.id,...d.data()}));
+    if(cfg.exists && cfg.data().logo){
+      appLogoData=cfg.data().logo;
+      applyLogo(appLogoData);
+    }
+    if(sched.exists){
+      scheduleConfig={...scheduleConfig,...sched.data()};
+    }
+    if(notifyCfg.exists){
+      notifyConfig={...notifyConfig,...notifyCfg.data()};
+    }
+    if(!DB.barbers.length||!DB.services.length) await seedData().then(async()=>{
+      const [bs2,ss2]=await Promise.all([fdb.collection('barbers').get(),fdb.collection('services').get()]);
+      DB.barbers=bs2.docs.map(d=>({id:d.id,...d.data()}));
+      DB.services=ss2.docs.map(d=>({id:d.id,...d.data()}));
+    });
+  }catch(e){console.error('initDB:',e);}
+  hideLoading();
+}
+
+// ── LOGO DINÂMICA ──
+function applyLogo(src){
+  appLogoData=src;
+  // Auth screen
+  const at=document.getElementById('auth-logo-text');
+  const ai=document.getElementById('auth-logo-img');
+  if(at&&ai){if(src){at.style.display='none';ai.src=src;ai.style.display='inline';}else{at.style.display='';ai.style.display='none';}}
+  // Topbar
+  const tt=document.getElementById('topbar-logo-text');
+  const ti=document.getElementById('topbar-logo-img');
+  if(tt&&ti){if(src){tt.style.display='none';ti.src=src;ti.style.display='inline';}else{tt.style.display='';ti.style.display='none';}}
+}
+async function saveLogo(src){
+  applyLogo(src);
+  try{ await fdb.collection('config').doc('app').set({logo:src},{merge:true}); }catch(e){console.error('Erro ao salvar logo:',e);}
+}
+
+// ── VIEWS ──
+// Duração das animações CSS (ms) — deve bater com viewEnter no style.css
+const VIEW_ENTER_MS = 320;
+const VIEW_LEAVE_MS = 200;
+
+let _viewTimer = null;
+function goView(v) {
+  const next = document.getElementById('v-' + v);
+  if (!next) return;
+  const current = document.querySelector('.view.active, .view.entering');
+  if (current === next) return;
+
+  // Cancela transição pendente sem tirar classes da view visível
+  if (_viewTimer) { clearTimeout(_viewTimer); _viewTimer = null; }
+
+  // Remove estados transitórios de views que não são current nem next
+  document.querySelectorAll('.view').forEach(el => {
+    if (el !== current && el !== next) {
+      el.classList.remove('active', 'entering', 'leaving');
+    }
+  });
+
+  // Coloca next como entering ANTES de qualquer remoção da current
+  // → nunca há um frame sem view visível → zero flash
+  next.classList.remove('active', 'leaving');
+  next.classList.add('entering');
+
+  if (current && current !== next) {
+    current.classList.remove('active', 'entering');
+    current.classList.add('leaving');
+  }
+
+  _viewTimer = setTimeout(() => {
+    _viewTimer = null;
+    document.querySelectorAll('.view').forEach(el => {
+      el.classList.remove('leaving', 'entering', 'active');
+    });
+    next.classList.add('active');
+  }, VIEW_ENTER_MS);
+}
+
+// ── AUTH ──
+function fmtPhone(el){
+  let v=el.value.replace(/\D/g,'');if(v.length>11)v=v.slice(0,11);
+  let f='';if(v.length>0)f='('+v.slice(0,2);if(v.length>2)f+=') '+v.slice(2,7);if(v.length>7)f+='-'+v.slice(7);
+  el.value=f;document.getElementById('auth-btn').disabled=v.length<10;
+}
+async function doAuth(){
+  const raw=document.getElementById('auth-phone').value.replace(/\D/g,'');
+  if(raw.length<10)return;
+  const phone='55'+raw;
+  showLoading('Entrando...');
+  try{
+    const ref=fdb.collection('users').doc(phone);
+    const snap=await ref.get();
+    if(!snap.exists)await ref.set({phone,name:'',createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    currentUser={phone,name:snap.exists?(snap.data().name||''):''};
+  }catch(e){console.error(e);}
+  hideLoading();
+  document.getElementById('tb-initials').textContent=raw.slice(-4,-2);
+  goView('main');S.step=1;S.barber=null;S.svc=null;S.date=null;S.time=null;S.tab='book';
+  renderStepBar();renderStep();
+  document.querySelectorAll('.bnav-item').forEach(x=>x.classList.remove('active'));
+  document.getElementById('bn-book').classList.add('active');
+}
+function sairApp(){
+  currentUser=null;
+  document.getElementById('auth-phone').value='';
+  document.getElementById('auth-btn').disabled=true;
+  resetBooking();goView('auth');
+}
+
+// ── NOTIFICAÇÃO WHATSAPP AO BARBEIRO ──
+async function notifyBarber(bkData){
+  if(!notifyConfig.notifyBarberOnBook) return;
+  const barberObj=DB.barbers.find(x=>x.id===bkData.barberId)||{};
+  const phone=(barberObj.phone||notifyConfig.barberPhone||'').replace(/\D/g,'');
+  if(!phone) return;
+  const msg=`✦ *BARBER APP — Novo Agendamento*\n\nNovo cliente marcou horário! 💈\n\n👤 *${bkData.name}*\n📱 ${bkData.phone.replace(/^55/,'')}\n✂ ${bkData.svc}\n📅 ${bkData.dateStr} às ${bkData.time}\n💰 R$${bkData.price}\n🔖 Cód: ${bkData.code}`;
+  await sendViaWAServer(phone,msg);
+}
+
+// ── ENVIO VIA SERVIDOR PRÓPRIO ──
+async function sendViaWAServer(phone,message){
+  const url=notifyConfig.waServerUrl;
+  const key=notifyConfig.waServerKey||'barberapp2024';
+  if(url){
+    try{
+      const r=await fetch(url.replace(/\/$/,'')+'/send',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':key},
+        body:JSON.stringify({phone,message})
+      });
+      const d=await r.json();
+      if(d.success) return true;
+      console.warn('WA Server:',d.error);
+    }catch(e){console.warn('WA Server fetch error:',e);}
+  }
+  // Fallback: abre WhatsApp manual
+  const fullPhone=phone.startsWith('55')?phone:'55'+phone;
+  setTimeout(()=>window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`,'_blank'),600);
+  return false;
+}
+
+// ── LEMBRETES DO DIA ──
+async function sendRemindersToday(){
+  if(!notifyConfig.remindClientsOnDay) return;
+  const today=new Date().toISOString().slice(0,10);
+  try{
+    const snap=await fdb.collection('bookings')
+      .where('date','==',today)
+      .where('status','==','confirmed')
+      .where('reminderSent','==',false)
+      .get();
+    if(snap.empty) return;
+    const pending=snap.docs.map(d=>({id:d.id,...d.data()}));
+    // Mostra toast de lembretes pendentes
+    showReminderToast(pending);
+  }catch(e){console.warn('sendRemindersToday:',e);}
+}
+
+function showReminderToast(pending){
+  const existing=document.getElementById('reminder-toast');
+  if(existing)existing.remove();
+  const toast=document.createElement('div');
+  toast.id='reminder-toast';
+  toast.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,rgba(21,21,21,0.98),rgba(28,24,14,0.98));border:0.5px solid var(--gold-border);border-radius:14px;padding:14px 18px;z-index:900;width:calc(100% - 32px);max-width:390px;box-shadow:0 8px 32px rgba(0,0,0,0.5);animation:slideUp .3s cubic-bezier(.22,1,.36,1)';
+  toast.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:12px;color:var(--gold);font-weight:600;letter-spacing:.3px">🔔 ${pending.length} lembrete${pending.length>1?'s':''} pendente${pending.length>1?'s':''} hoje</div>
+      <button onclick="document.getElementById('reminder-toast').remove()" style="background:none;border:none;color:var(--txt3);font-size:18px;cursor:pointer;padding:0;line-height:1">×</button>
+    </div>
+    <div style="font-size:11px;color:var(--txt2);margin-bottom:12px;font-weight:300">Envie lembretes para os clientes de hoje</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button onclick="sendAllReminders(${JSON.stringify(pending).replace(/"/g,'&quot;')})" class="btn btn-wa" style="font-size:12px;padding:10px">📤 Enviar todos</button>
+      <button onclick="document.getElementById('reminder-toast').remove()" class="btn btn-outline" style="font-size:12px;padding:10px">Agora não</button>
+    </div>`;
+  document.body.appendChild(toast);
+}
+
+async function sendAllReminders(pending){
+  document.getElementById('reminder-toast')?.remove();
+  for(const b of pending){
+    await sendSingleReminder(b);
+    await new Promise(r=>setTimeout(r,600));
+  }
+}
+
+async function sendSingleReminder(b){
+  const phone=(b.phone||'').replace(/\D/g,'');
+  if(!phone) return;
+  const msg=`✦ *Barber App — Lembrete de hoje!* 💈\n\nOlá *${b.name}*! Só passando para lembrar:\n\n✂ *${b.svc}*\n💈 Barbeiro: ${b.barber}\n📅 Hoje às *${b.time}*\n\nChegue 5 minutos antes. Te esperamos! 🤝`;
+  await sendViaWAServer(phone,msg);
+  // Marca como enviado
+  try{await fdb.collection('bookings').doc(b.id).update({reminderSent:true});}catch(e){}
+}
+
+// ── TABS ──
+function switchTab(t){
+  S.tab=t;
+  document.querySelectorAll('.bnav-item').forEach(x=>x.classList.remove('active'));
+  document.getElementById('bn-'+t).classList.add('active');
+  const sc=document.getElementById('step-content');
+  const sb=document.getElementById('step-bar-wrap');
+  // fade out
+  sc.style.opacity='0';sc.style.transform='translateY(8px)';sc.style.transition='opacity .15s ease, transform .15s ease';
+  setTimeout(()=>{
+    if(t==='book'){
+      sb.style.display='';
+      S.step=1;S.barber=null;S.svc=null;S.date=null;S.time=null;renderStepBar();renderStep();
+    }else{sb.style.display='none';renderMyBookings();}
+    sc.style.transition='opacity .22s ease, transform .22s cubic-bezier(.22,1,.36,1)';
+    requestAnimationFrame(()=>{ sc.style.opacity='1'; sc.style.transform='translateY(0)'; });
+  },150);
+}
+function goView2(v){if(v==='my')switchTab('my');else if(v==='book')switchTab('book');}
+
+// ── STEP BAR ──
+function renderStepBar(){
+  const lbls=['Barbeiro','Serviço','Data & Hora','Confirmar'];
+  let h='<div class="stepbar">';
+  for(let i=1;i<=4;i++){
+    const d=i<S.step,o=i===S.step;
+    h+=`<div class="scol"><div class="sdot${d?' done':o?' on':''}">${d?'✓':i}</div><div class="slbl${d?' done':o?' on':''}">${lbls[i-1]}</div></div>`;
+    if(i<4)h+=`<div class="sline${d?' done':''}"></div>`;
+  }
+  document.getElementById('step-bar-wrap').innerHTML=h+'</div>';
+}
+function goStep(n){S.step=n;renderStepBar();renderStep();}
+function renderStep(selOnly){
+  const c=document.getElementById('step-content');
+  if(selOnly){
+    if(S.step===1){
+      c.querySelectorAll('.barber-card').forEach(el=>{
+        el.classList.toggle('sel',el.getAttribute('data-id')===S.barber);
+      });
+      const btn=c.querySelector('#st1-continue');
+      if(btn)btn.disabled=!S.barber;
+    }else if(S.step===2){
+      c.querySelectorAll('.svc-item').forEach(el=>{
+        const sel=el.getAttribute('data-id')===S.svc;
+        el.classList.toggle('sel',sel);
+        const chk=el.querySelector('.svc-check');
+        if(chk)chk.textContent=sel?'✓':'';
+      });
+      const btn=c.querySelector('#st2-continue');
+      if(btn)btn.disabled=!S.svc;
+    }else if(S.step===3){
+      c.querySelectorAll('.time-slot').forEach(el=>{
+        el.classList.toggle('sel',el.getAttribute('data-time')===S.time);
+      });
+      const btn=c.querySelector('#st3-continue');
+      if(btn)btn.disabled=!S.date||!S.time;
+    }
+    return;
+  }
+  c.style.transition='none';
+  c.style.opacity='1';
+  c.style.transform='none';
+  c.innerHTML=S.step===1?st1():S.step===2?st2():S.step===3?st3():S.step===4?st4():stDone();
+}
+
+// ── STEP 1 BARBEIROS ──
+function st1(){
+  const cards=DB.barbers.map(b=>`
+    <div class="barber-card${S.barber===b.id?' sel':''}" data-id="${b.id}" onclick="S.barber='${b.id}';renderStep(true)">
+      <div class="b-photo">${b.photo?`<img src="${b.photo}">`:`<span style="font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--txt2)">${b.initials}</span>`}</div>
+      <div class="b-name">${b.name}</div><div class="b-spec">${b.spec}</div>
+      <div class="b-stars">${'★'.repeat(Math.floor(parseFloat(b.rat)))} ${b.rat}</div>
+    </div>`).join('');
+  return`<div class="section-hero animate-up"><div class="sh-eyebrow">Passo 1</div><div class="sh-title">Escolha seu barbeiro</div><div class="gold-line"></div></div>
+  <div class="body animate-up delay-1"><div class="section-lbl">Profissionais disponíveis</div>
+    <div class="barbers-scroll">${cards}</div>
+    <button class="btn btn-gold" id="st1-continue" onclick="if(S.barber)goStep(2)" ${!S.barber?'disabled':''}>Continuar →</button></div>`;
+}
+
+// ── STEP 2 SERVIÇOS ──
+function st2(){
+  const items=DB.services.map(s=>`
+    <div class="svc-item${S.svc===s.id?' sel':''}" data-id="${s.id}" onclick="S.svc='${s.id}';renderStep(true)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="svc-icon-wrap">${s.photo?`<img src="${s.photo}">`:`<span>${s.icon}</span>`}</div>
+        <div><div class="svc-name">${s.name}</div><div class="svc-dur">⏱ ${s.dur}</div></div>
+      </div>
+      <div style="display:flex;align-items:center">
+        <div class="svc-price">R$${s.price}</div>
+        <div class="svc-check">${S.svc===s.id?'✓':''}</div>
+      </div>
+    </div>`).join('');
+  return`<div class="section-hero animate-up"><div class="sh-eyebrow">Passo 2</div><div class="sh-title">Qual serviço?</div><div class="gold-line"></div></div>
+  <div class="body animate-up delay-1"><div class="section-lbl">Serviços disponíveis</div>
+    <div class="svc-list">${items}</div>
+    <div class="btn-row">
+      <button class="btn btn-outline" onclick="goStep(1)">← Voltar</button>
+      <button class="btn btn-gold" id="st2-continue" onclick="if(S.svc)goStep(3)" ${!S.svc?'disabled':''}>Continuar →</button>
+    </div></div>`;
+}
+
+// ── STEP 3 DATA & HORA ──
+function buildCalCells(){
+  const today=new Date(),first=new Date(cY,cM,1).getDay(),days=new Date(cY,cM+1,0).getDate();
+  let cells='';
+  DOW.forEach(d=>cells+=`<div class="cal-dow">${d}</div>`);
+  for(let i=0;i<first;i++)cells+=`<div class="cal-day"></div>`;
+  for(let d=1;d<=days;d++){
+    const dt=new Date(cY,cM,d);
+    const isTod=dt.toDateString()===today.toDateString();
+    const isPast=dt<new Date(today.getFullYear(),today.getMonth(),today.getDate());
+    const dayOfWeek=dt.getDay();
+    const isOffDay=!scheduleConfig.workDays.includes(dayOfWeek);
+    const s=`${cY}-${String(cM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isHoliday=scheduleConfig.holidays.includes(s);
+    const isSel=S.date===s;
+    const dis=isPast||isOffDay||isHoliday;
+    const has=!dis&&[2,4,5,7,9,12,14,17,19,21,23,26].includes(d);
+    let dayCls='cal-day';
+    if(isTod)dayCls+=' today';
+    if(isSel)dayCls+=' sel';
+    if(isHoliday)dayCls+=' holiday';
+    else if(dis)dayCls+=' dis';
+    if(has&&!isSel&&!dis)dayCls+=' has';
+    cells+=`<div class="${dayCls}" ${dis?'title="'+(isHoliday?'Feriado':'Fechado')+'"':'onclick="pickDate(\''+s+'\')"'}>${d}</div>`;
+  }
+  return cells;
+}
+
+function buildTimesHTML(animate){
+  const TIMES=generateTimes(scheduleConfig);
+  const takenSlots=DB.bookings.filter(b=>b.date===S.date&&b.status!=='cancelled').map(b=>b.time);
+  const nowRef=new Date();
+  const todayStr=nowRef.getFullYear()+'-'+String(nowRef.getMonth()+1).padStart(2,'0')+'-'+String(nowRef.getDate()).padStart(2,'0');
+  const nowMinutes=nowRef.getHours()*60+nowRef.getMinutes();
+  const isToday=S.date===todayStr;
+  const isHolidaySel=S.date&&scheduleConfig.holidays.includes(S.date);
+  if(isHolidaySel){
+    return`<div id="times-section" style="overflow:hidden${animate?';animation:timesSlideDown .35s cubic-bezier(.22,1,.36,1) both':''}">
+      <div style="background:rgba(224,85,85,0.08);border:0.5px solid rgba(224,85,85,0.25);border-radius:10px;padding:10px 14px;margin-top:8px;font-size:12px;color:var(--red);display:flex;align-items:center;gap:8px">🚫 <span>Esta data é feriado — a barbearia estará fechada.</span></div>
+    </div>`;
+  }
+  const slots=TIMES.map(t=>{
+    const taken=takenSlots.includes(t);
+    const [th,tm]=t.split(':').map(Number);
+    const un=taken||(isToday&&(th*60+tm)<=nowMinutes);
+    return`<div class="time-slot${S.time===t?' sel':''}${un?' unavail':''}" ${un?'':'data-time="'+t+'" onclick="S.time=\''+t+'\';renderStep(true)"'}>${t}</div>`;
+  }).join('');
+  return`<div id="times-section" style="overflow:hidden${animate?';animation:timesSlideDown .35s cubic-bezier(.22,1,.36,1) both':''}">
+    <div class="section-lbl" style="margin-top:16px">Horários disponíveis</div>
+    <div class="time-grid">${slots}</div>
+  </div>`;
+}
+
+function st3(){
+  const timesH=S.date
+    ? buildTimesHTML(false)
+    : `<div id="times-section"><div style="text-align:center;padding:20px 0;font-size:12px;color:var(--txt3);font-weight:300">Selecione uma data para ver os horários</div></div>`;
+  return`<div class="section-hero animate-up"><div class="sh-eyebrow">Passo 3</div><div class="sh-title">Data & Horário</div><div class="gold-line"></div></div>
+  <div class="body animate-up delay-1">
+    <div class="cal-wrap">
+      <div class="cal-head">
+        <button class="cal-nav" onclick="cM--;if(cM<0){cM=11;cY--}renderStep()">‹</button>
+        <div class="cal-month">${MES[cM]} ${cY}</div>
+        <button class="cal-nav" onclick="cM++;if(cM>11){cM=0;cY++}renderStep()">›</button>
+      </div>
+      <div class="cal-grid" id="cal-grid-inner">${buildCalCells()}</div>
+    </div>
+    ${timesH}
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn btn-outline" onclick="goStep(2)">← Voltar</button>
+      <button class="btn btn-gold" id="st3-continue" onclick="if(S.date&&S.time)goStep(4)" ${!S.date||!S.time?'disabled':''}>Continuar →</button>
+    </div></div>`;
+}
+
+function pickDate(d){
+  S.date=d; S.time=null;
+  // Atualiza seleção visual no calendário sem recriar tudo
+  const grid=document.getElementById('cal-grid-inner');
+  if(grid){
+    grid.querySelectorAll('.cal-day').forEach(el=>el.classList.remove('sel'));
+    const cells=grid.querySelectorAll('.cal-day');
+    // re-renderiza apenas o grid (sem animação no calendário)
+    grid.innerHTML=buildCalCells();
+  }
+  // Anima entrada dos horários
+  const ts=document.getElementById('times-section');
+  if(ts){
+    ts.style.animation='none';
+    ts.style.opacity='0';
+    ts.style.transform='translateY(14px)';
+    ts.style.transition='none';
+    ts.innerHTML=`<div style="text-align:center;padding:16px 0;font-size:11px;color:var(--txt3)">Carregando horários…</div>`;
+  }
+  // Atualiza botão continuar
+  const btn=document.getElementById('st3-continue');
+  if(btn)btn.disabled=true;
+  // Busca slots ocupados e anima entrada
+  fdb.collection('bookings').where('date','==',d).get()
+    .then(snap=>{
+      const dayBks=snap.docs.map(x=>({id:x.id,...x.data()}));
+      DB.bookings=DB.bookings.filter(b=>b.date!==d).concat(dayBks);
+      const ts2=document.getElementById('times-section');
+      if(ts2){
+        ts2.outerHTML=buildTimesHTML(true);
+      }
+      const btn2=document.getElementById('st3-continue');
+      if(btn2)btn2.disabled=!S.time;
+    })
+    .catch(e=>{
+      console.warn('pickDate:',e);
+      const ts2=document.getElementById('times-section');
+      if(ts2) ts2.outerHTML=buildTimesHTML(true);
+    });
+}
+
+// ── STEP 4 CONFIRMAR ──
+function st4(){
+  const b=DB.barbers.find(x=>x.id===S.barber)||{};
+  const sv=DB.services.find(x=>x.id===S.svc)||{};
+  const [ay,am,ad]=S.date.split('-').map(Number);
+  const ds=`${String(ad).padStart(2,'0')}/${String(am).padStart(2,'0')}/${ay}`;
+  return`<div class="section-hero animate-up"><div class="sh-eyebrow">Passo 4</div><div class="sh-title">Confirmar</div><div class="gold-line"></div></div>
+  <div class="body animate-up delay-1">
+    <div class="summary-card">
+      <div class="sum-row"><span class="sum-k">Barbeiro</span><span class="sum-v">${b.name}</span></div>
+      <div class="sum-row"><span class="sum-k">Serviço</span><span class="sum-v">${sv.name}</span></div>
+      <div class="sum-row"><span class="sum-k">Duração</span><span class="sum-v">${sv.dur}</span></div>
+      <div class="sum-row"><span class="sum-k">Data</span><span class="sum-v">${ds}</span></div>
+      <div class="sum-row"><span class="sum-k">Horário</span><span class="sum-v">${S.time}</span></div>
+      <div class="sum-row sum-total"><span class="sum-k">Total</span><span class="sum-v">R$${sv.price}</span></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Seu nome</label>
+      <input class="form-input" type="text" placeholder="Como prefere ser chamado?" id="inp-name" value="${currentUser.name||''}" oninput="currentUser.name=this.value"/>
+    </div>
+    <div class="wa-note">
+      <div class="wa-icon">📱</div>
+      <div class="wa-text"><strong>Confirmação via WhatsApp</strong><span>Ao confirmar, abriremos o WhatsApp com sua mensagem</span></div>
+    </div>
+    <button class="btn btn-wa" onclick="confirmBooking()"><span style="font-size:18px">✓</span> Confirmar e enviar WhatsApp</button>
+    <div style="margin-top:8px"><button class="btn btn-outline" onclick="goStep(3)">← Voltar</button></div>
+  </div>`;
+}
+
+// ── CONFIRMAR — salva no Firestore ──
+async function confirmBooking(){
+  const nameEl=document.getElementById('inp-name');
+  const name=nameEl?nameEl.value.trim():'';
+  if(!name){alert('Informe seu nome!');return;}
+  currentUser.name=name;
+  const b=DB.barbers.find(x=>x.id===S.barber)||{};
+  const sv=DB.services.find(x=>x.id===S.svc)||{};
+  const [ay,am,ad]=S.date.split('-').map(Number);
+  const ds=`${String(ad).padStart(2,'0')}/${String(am).padStart(2,'0')}/${ay}`;
+  showLoading('Salvando agendamento...');
+  try{
+    const docRef=await fdb.collection('bookings').add({
+      barber:b.name,barberId:b.id,svc:sv.name,svcId:sv.id,price:sv.price,
+      date:S.date,dateStr:ds,time:S.time,name,phone:currentUser.phone,
+      status:'confirmed',reminderSent:false,
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    await fdb.collection('users').doc(currentUser.phone).update({name});
+    const code=docRef.id.slice(-6).toUpperCase();
+    // Notifica barbeiro automaticamente
+    await notifyBarber({name,phone:currentUser.phone,svc:sv.name,dateStr:ds,time:S.time,price:sv.price,code,barberId:b.id});
+    const msg=encodeURIComponent(`✦ *Barber App — Confirmação*\n\nOlá, *${name}*! Seu agendamento foi confirmado:\n\n• Barbeiro: ${b.name}\n• Serviço: ${sv.name}\n• Data: ${ds} às ${S.time}\n• Código: *${code}*\n\nChegue 5 minutos antes. Até lá! 💈`);
+    window.open('https://wa.me/'+currentUser.phone+'?text='+msg,'_blank');
+    S.step=5;S.bookingCode=code;renderStep();
+  }catch(e){alert('Erro ao salvar. Verifique sua conexão.');console.error(e);}
+  hideLoading();
+}
+
+// ── SUCESSO ──
+function stDone(){
+  const code=S.bookingCode;
+  return`<div class="success-body animate-in">
+    <div class="suc-ring">✓</div>
+    <div class="suc-title">Agendado!</div>
+    <div class="suc-sub">Seu horário está confirmado.<br>O WhatsApp foi aberto com a confirmação.</div>
+    <div class="code-box">${code}</div>
+    <div class="wa-note" style="text-align:left">
+      <div class="wa-icon">📱</div>
+      <div class="wa-text"><strong>Mensagem enviada</strong><span>Mostre este código ao chegar</span></div>
+    </div>
+    <button class="btn btn-gold" onclick="newBooking()" style="margin-bottom:8px">Novo agendamento</button>
+    <button class="btn btn-outline" onclick="switchTab('my')">Ver meus agendamentos</button>
+  </div>`;
+}
+function newBooking(){S.step=1;S.barber=null;S.svc=null;S.date=null;S.time=null;cM=new Date().getMonth();cY=new Date().getFullYear();renderStepBar();renderStep();}
+function resetBooking(){S.step=1;S.barber=null;S.svc=null;S.date=null;S.time=null;}
+
+// ── MEUS AGENDAMENTOS — realtime ──
+function renderMyBookings(){
+  document.getElementById('step-bar-wrap').innerHTML='';
+  const c=document.getElementById('step-content');
+  c.innerHTML=`<div class="mybookings"><div class="my-title">Meus agendamentos</div><div class="empty" style="padding-top:40px">Carregando...</div></div>`;
+  // Sem orderBy para evitar índice composto obrigatório no Firestore
+  fdb.collection('bookings').where('phone','==',currentUser.phone).onSnapshot(snap=>{
+    const now=new Date();
+    // Ordena no cliente: mais recentes primeiro
+    const myBks=snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>b.date.localeCompare(a.date)||(b.time||'').localeCompare(a.time||''));
+    if(!myBks.length){
+      c.innerHTML=`<div class="mybookings animate-up"><div class="my-title">Meus agendamentos</div><div class="my-sub">Histórico completo dos seus horários</div>
+        <div class="empty">Nenhum agendamento ainda.<br><br><button class="btn btn-gold" style="width:auto;padding:12px 24px;font-size:13px" onclick="switchTab('book')">Fazer primeiro agendamento</button></div></div>`;
+      return;
+    }
+    const cards=myBks.map(b=>{
+      const bDateTime=new Date(b.date+'T'+b.time+':00');
+      const isPast=now>bDateTime;
+      const eff=b.status==='cancelled'?'cancelled':isPast?'completed':'confirmed';
+      const badgeCls=eff==='cancelled'?'cancel':eff==='completed'?'pend':'ok';
+      const badgeTxt=eff==='cancelled'?'Cancelado':eff==='completed'?'Realizado':'Confirmado';
+      return`<div class="booking-card animate-up">
+        <div class="bc-header"><div class="bc-date">${b.dateStr} às ${b.time}</div><span class="bc-badge ${badgeCls}">${badgeTxt}</span></div>
+        <div class="bc-info">${b.svc} · ${b.barber}<br>R$${b.price} · Cód: ${b.id.slice(-6).toUpperCase()}</div>
+      </div>`;
+    }).join('');
+    c.innerHTML=`<div class="mybookings animate-up"><div class="my-title">Meus agendamentos</div><div class="my-sub">Histórico completo dos seus horários</div>${cards}</div>`;
+  },err=>{
+    console.error('renderMyBookings:',err);
+    c.innerHTML=`<div class="mybookings"><div class="my-title">Meus agendamentos</div><div class="empty">Erro ao carregar agendamentos.<br><span style="font-size:11px;color:var(--txt3)">${err.message}</span></div></div>`;
+  });
+}
+
+// ── CANCELAR ──
+function askCancel(id, dateStr, svc, barber){
+  cancelTarget=id;
+  const info=document.getElementById('cancel-booking-info');
+  if(info) info.innerHTML=`📅 ${dateStr||''}<br>✂ ${svc||''} · ${barber||''}`;
+  document.getElementById('cancel-modal').style.display='flex';
+  document.getElementById('cancel-confirm-btn').onclick=async()=>{
+    await fdb.collection('bookings').doc(cancelTarget).update({status:'cancelled'});
+    closeCancelModal();
+  };
+}
+function closeCancelModal(e){
+  if(!e||e.target===document.getElementById('cancel-modal')){
+    document.getElementById('cancel-modal').style.display='none';cancelTarget=null;
+  }
+}
+
+// ── ADMIN LOGIN ──
+function openAdmin(){goView('adm-login');}
+function doAdmLogin(){
+  const u=document.getElementById('adm-user').value.trim();
+  const p=document.getElementById('adm-pass').value;
+  if(u===ADM_USER&&p===ADM_PASS){
+    goView('adm-panel');
+    setTimeout(()=>admTab('agenda',document.querySelector('#v-adm-panel .atab.active')||document.querySelector('#v-adm-panel .atab')),10);
+  }else{
+    const e=document.getElementById('adm-err');e.style.display='block';
+    setTimeout(()=>e.style.display='none',2500);
+    document.getElementById('adm-pass').value='';
+  }
+}
+function admLogout(){
+  if(admUnsubscribe){admUnsubscribe();admUnsubscribe=null;}
+  document.getElementById('adm-user').value='';
+  document.getElementById('adm-pass').value='';
+  goView('auth');resetBooking();
+}
+
+// ── ADMIN TABS ──
+function admTab(t,el){
+  if(admUnsubscribe){admUnsubscribe();admUnsubscribe=null;}
+  document.querySelectorAll('.atab').forEach(x=>x.classList.remove('active'));
+  if(el)el.classList.add('active');
+  const body=document.getElementById('adm-body');
+  if(t==='agenda')admAgenda(body);
+  else if(t==='barbeiros')admBarbeiros(body);
+  else if(t==='servicos')admServicos(body);
+  else if(t==='relatorios')admRelatorios(body);
+  else if(t==='config')admConfig(body);
+}
+
+// ── ADMIN AGENDA — realtime com onSnapshot ──
+function admAgenda(container){
+  // Verifica lembretes pendentes do dia ao abrir a agenda
+  setTimeout(sendRemindersToday, 1200);
+  container.innerHTML=`
+    <div class="filter-row">
+      <button class="f-btn active" onclick="admFilter('all',this)">Todos</button>
+      <button class="f-btn" onclick="admFilter('today',this)">Hoje</button>
+      <button class="f-btn" onclick="admFilter('upcoming',this)">Próximos</button>
+    </div>
+    <div id="adm-stats"></div>
+    <div id="adm-list"><div class="empty">Carregando...</div></div>`;
+
+  let currentFilter='all', allBks=[];
+  window.admFilter=function(f,el){
+    currentFilter=f;
+    document.querySelectorAll('.f-btn').forEach(x=>x.classList.remove('active'));
+    el.classList.add('active');
+    renderList();
+  };
+
+  function renderList(){
+    const now=new Date();
+    const today=now.toISOString().slice(0,10);
+    const nowTime=now.toTimeString().slice(0,5);
+    let list=[...allBks];
+    if(currentFilter==='today')list=list.filter(b=>b.date===today);
+    else if(currentFilter==='upcoming')list=list.filter(b=>b.date>today||(b.date===today&&b.time>=nowTime));
+    list.sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+    const el=document.getElementById('adm-list');if(!el)return;
+    if(!list.length){el.innerHTML=`<div class="empty">Nenhum agendamento encontrado.</div>`;return;}
+    el.innerHTML=list.map(b=>{
+      const[h,m]=b.time.split(':');
+      // Usa janela de 20 min: só considera "realizado" após o grace period
+      const bDateTime=new Date(b.date+'T'+b.time+':00');
+      const graceEnd=new Date(bDateTime.getTime()+NO_SHOW_GRACE_MIN*60000);
+      const isPastGrace=now>graceEnd;
+      const isPastStart=now>bDateTime;
+      const inGrace=isPastStart&&!isPastGrace;
+      // Badge de status na agenda do admin
+      let statusBadge='';
+      if(isPastGrace) statusBadge='<span style="font-size:9px;color:var(--txt3);background:var(--bg3);padding:2px 6px;border-radius:10px;margin-left:6px">Realizado</span>';
+      else if(inGrace){
+        const minLeft=Math.ceil((graceEnd-now)/60000);
+        statusBadge=`<span style="font-size:9px;color:#FFA500;background:rgba(255,165,0,0.1);border:0.5px solid rgba(255,165,0,0.2);padding:2px 6px;border-radius:10px;margin-left:6px">⏳ ${minLeft}min</span>`;
+      }
+      return`<div class="appt-card animate-up" style="${isPastGrace?'opacity:.55':''}">
+        <div class="appt-time-block"><div class="appt-hour">${h}:${m}</div><div class="appt-min">${b.dateStr}</div></div>
+        <div class="appt-info">
+          <div class="appt-name">${b.name}${statusBadge}</div>
+          <div class="appt-det">${b.svc} · ${b.barber} · R$${b.price}</div>
+        </div>
+        <div class="appt-acts">
+          <button class="act-btn act-wa" onclick="sendWA('${b.id}')">WA</button>
+          <button class="act-btn act-del" onclick="admDel('${b.id}')">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  admUnsubscribe=fdb.collection('bookings').where('status','==','confirmed').onSnapshot(snap=>{
+    const now=new Date(),nowStr=now.toISOString().slice(0,10);
+    allBks=snap.docs.map(d=>{
+      const data=d.data();
+      // _isPast considera janela de 20 min para stats
+      const bDateTime=new Date(data.date+'T'+data.time+':00');
+      const graceEnd=new Date(bDateTime.getTime()+NO_SHOW_GRACE_MIN*60000);
+      const _isPast=now>graceEnd;
+      return{id:d.id,...data,_isPast};
+    });
+    DB.bookings=[...allBks];
+    // Stats: receita só conta agendamentos realizados (após grace) ou confirmados
+    const todayStr=nowStr;
+    const todayCount=allBks.filter(b=>b.date===todayStr).length;
+    const rev=allBks.reduce((a,b)=>a+(b.price||0),0);
+    const statsEl=document.getElementById('adm-stats');
+    if(statsEl)statsEl.innerHTML=`<div class="stats-row animate-up">
+      <div class="stat-card"><div class="stat-lbl">Hoje</div><div class="stat-num g">${todayCount}</div></div>
+      <div class="stat-card"><div class="stat-lbl">Total</div><div class="stat-num">${allBks.length}</div></div>
+      <div class="stat-card"><div class="stat-lbl">Receita</div><div class="stat-num gr">R$${rev}</div></div>
+    </div>`;
+    renderList();
+  });
+}
+
+// ── ADMIN CONFIG ──
+function admConfig(container){
+  _schWorkDays=[...scheduleConfig.workDays];
+  const sch=scheduleConfig;
+  const dayLabels=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const dayToggles=dayLabels.map((lbl,i)=>
+    `<button class="day-toggle${sch.workDays.includes(i)?' on':''}" id="daytog-${i}" onclick="toggleDay(${i})" style="padding:8px 4px;border-radius:8px;text-align:center;font-size:10px;cursor:pointer;border:1px solid rgba(255,255,255,0.07);background:transparent;color:var(--txt3);font-family:'Inter',sans-serif;transition:all .2s" onmouseover="" >${lbl}</button>`
+  ).join('');
+  const holidayTags=(sch.holidays||[]).map(h=>
+    `<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(224,85,85,0.1);border:0.5px solid rgba(224,85,85,0.2);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--red);margin:3px">${fmtHolidayDate(h)}<button onclick="removeHoliday('${h}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;line-height:1;padding:0">×</button></span>`
+  ).join('') || '<span style="font-size:11px;color:var(--txt3)">Nenhum feriado cadastrado</span>';
+  // Injetar CSS para .day-toggle.on se não existir
+  if(!document.getElementById('day-toggle-css')){
+    const s=document.createElement('style');s.id='day-toggle-css';
+    s.textContent='.day-toggle.on{background:var(--gold-bg)!important;border-color:var(--gold-border)!important;color:var(--gold)!important}';
+    document.head.appendChild(s);
+  }
+  container.innerHTML=`
+    <!-- Logo -->
+    <div class="section-lbl" style="margin-bottom:14px">Identidade Visual</div>
+    <div style="background:var(--bg2);border:0.5px solid rgba(255,255,255,0.06);border-radius:var(--r);padding:18px;margin-bottom:16px">
+      <div style="font-size:12px;color:var(--txt2);margin-bottom:14px;font-weight:300;line-height:1.6">
+        Altere a logo exibida na tela de entrada e no topo do app.<br>
+        <span style="color:var(--txt3);font-size:11px">Recomendado: PNG transparente, min 200×60 px</span>
+      </div>
+      <div class="logo-upload-area" onclick="document.getElementById('logo-input').click()">
+        <div class="logo-preview-wrap" id="logo-prev-wrap">
+          ${appLogoData
+            ? '<img class="logo-preview-img" id="logo-prev-img" src="'+appLogoData+'" alt="Logo atual"/>'
+            : '<span class="logo-preview-text">✦ BARBER APP</span>'}
+        </div>
+        <div style="font-size:11px;color:var(--txt3);font-weight:300">Toque para selecionar imagem</div>
+        <input type="file" id="logo-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none" onchange="previewLogo(this)"/>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">
+        <button class="btn btn-outline" id="logo-reset-btn" onclick="resetLogo()" style="font-size:13px" ${!appLogoData?'disabled':''}>🗑 Remover logo</button>
+        <button class="btn btn-gold" id="logo-save-btn" onclick="saveLogoFromAdmin()" disabled style="font-size:13px">✓ Aplicar logo</button>
+      </div>
+    </div>
+
+    <!-- Horários -->
+    <div class="section-lbl" style="margin-bottom:14px">Dias & Horários de Atendimento</div>
+    <div style="background:var(--bg2);border:0.5px solid rgba(255,255,255,0.06);border-radius:var(--r);padding:18px;margin-bottom:16px">
+      <div style="font-size:11px;color:var(--txt3);margin-bottom:10px;font-weight:300">Dias de funcionamento</div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:16px">${dayToggles}</div>
+      <div style="font-size:11px;color:var(--txt3);margin-bottom:10px;font-weight:300">Horário de funcionamento</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div><label class="form-label">Abertura</label><input class="form-input" type="time" id="sch-start" value="${sch.startTime}"/></div>
+        <div><label class="form-label">Fechamento</label><input class="form-input" type="time" id="sch-end" value="${sch.endTime}"/></div>
+      </div>
+      <div style="font-size:11px;color:var(--txt3);margin-bottom:10px;font-weight:300">Intervalo de almoço</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div><label class="form-label">Início</label><input class="form-input" type="time" id="sch-lunch-start" value="${sch.lunchStart}"/></div>
+        <div><label class="form-label">Fim</label><input class="form-input" type="time" id="sch-lunch-end" value="${sch.lunchEnd}"/></div>
+      </div>
+      <div style="font-size:11px;color:var(--txt3);margin-bottom:10px;font-weight:300">Intervalo entre horários</div>
+      <div style="margin-bottom:16px">
+        <select class="form-input" id="sch-slot" style="cursor:pointer">
+          <option value="15" ${sch.slotMin===15?'selected':''}>15 minutos</option>
+          <option value="20" ${sch.slotMin===20?'selected':''}>20 minutos</option>
+          <option value="30" ${sch.slotMin===30?'selected':''}>30 minutos</option>
+          <option value="45" ${sch.slotMin===45?'selected':''}>45 minutos</option>
+          <option value="60" ${sch.slotMin===60?'selected':''}>60 minutos</option>
+        </select>
+      </div>
+      <button class="btn btn-gold" onclick="saveSchedule()" style="font-size:13px">✓ Salvar horários</button>
+    </div>
+
+    <!-- Feriados -->
+    <div class="section-lbl" style="margin-bottom:14px">Feriados e Dias Fechados</div>
+    <div style="background:var(--bg2);border:0.5px solid rgba(255,255,255,0.06);border-radius:var(--r);padding:18px;margin-bottom:16px">
+      <div style="font-size:12px;color:var(--txt2);margin-bottom:12px;font-weight:300;line-height:1.6">
+        Datas marcadas ficam <span style="color:var(--red)">bloqueadas</span> no calendário com aviso ao cliente.
+      </div>
+      <div id="holiday-tags" style="margin-bottom:14px">${holidayTags}</div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;margin-bottom:14px">
+        <div><label class="form-label">Adicionar data</label><input class="form-input" type="date" id="new-holiday"/></div>
+        <button class="btn btn-outline" style="padding:14px 16px;width:auto;font-size:13px;margin-bottom:0" onclick="addHoliday()">+ Adicionar</button>
+      </div>
+      <div style="font-size:10px;color:var(--txt3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.8px">Atalhos — Feriados nacionais</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">
+        ${[['2025-12-25','Natal 25'],['2025-12-31','Réveillon'],['2026-01-01','Ano Novo'],['2026-04-21','Tiradentes'],['2026-05-01','Dia do Trab.'],['2026-09-07','Independência'],['2026-10-12','Ap. Aparecida'],['2026-11-02','Finados'],['2026-11-15','Proc. República'],['2026-12-25','Natal 26']].map(([date,name])=>
+          `<button onclick="quickAddHoliday('${date}')" style="font-size:10px;background:var(--bg3);border:0.5px solid rgba(255,255,255,0.07);border-radius:20px;color:var(--txt3);padding:4px 8px;cursor:pointer;font-family:Inter,sans-serif">${name}</button>`
+        ).join('')}
+      </div>
+    </div>
+
+    <!-- Notificações WhatsApp -->
+    <div class="section-lbl" style="margin-bottom:14px">📲 Notificações WhatsApp</div>
+    <div style="background:var(--bg2);border:0.5px solid rgba(255,255,255,0.06);border-radius:var(--r);padding:18px;margin-bottom:16px">
+
+      <!-- Guia de ativação -->
+      <div style="background:rgba(37,211,102,0.06);border:0.5px solid rgba(37,211,102,0.2);border-radius:10px;padding:12px 14px;margin-bottom:16px">
+        <div style="font-size:12px;color:#25D366;font-weight:600;margin-bottom:6px">⚡ Servidor WhatsApp Próprio (100% grátis)</div>
+        <div style="font-size:11px;color:var(--txt2);line-height:1.8;font-weight:300">
+          Use seu número pessoal para enviar mensagens automáticas.<br>
+          <span style="color:var(--txt3)">1. Faça deploy do servidor no Render.com (grátis)<br>
+          2. Cole a URL do servidor abaixo<br>
+          3. Escaneie o QR Code uma vez com seu WhatsApp<br>
+          4. Pronto — mensagens 100% automáticas!</span>
+        </div>
+        <button onclick="window.open('https://render.com/deploy','_blank')" style="margin-top:10px;background:rgba(37,211,102,0.12);border:0.5px solid rgba(37,211,102,0.3);border-radius:8px;color:#25D366;font-size:11px;padding:8px 14px;cursor:pointer;font-family:Inter,sans-serif;width:100%">🚀 Abrir Render.com para deploy</button>
+      </div>
+
+      <!-- Toggle: notificar barbeiro -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div>
+          <div style="font-size:12px;color:var(--txt);font-weight:500">Notificar barbeiro ao agendar</div>
+          <div style="font-size:10px;color:var(--txt3);font-weight:300;margin-top:2px">Enviar WA imediato ao barbeiro quando cliente marcar</div>
+        </div>
+        <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
+          <input type="checkbox" id="nc-notify-barber" ${notifyConfig.notifyBarberOnBook?'checked':''} style="opacity:0;width:0;height:0;position:absolute" onchange="notifyConfig.notifyBarberOnBook=this.checked"/>
+          <span style="position:absolute;inset:0;background:${notifyConfig.notifyBarberOnBook?'var(--gold)':'var(--bg5)'};border-radius:24px;transition:.3s;display:flex;align-items:center;padding:0 4px;justify-content:${notifyConfig.notifyBarberOnBook?'flex-end':'flex-start'}"><span style="width:16px;height:16px;background:#fff;border-radius:50%;display:block"></span></span>
+        </label>
+      </div>
+
+      <!-- Toggle: lembrete ao cliente -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div>
+          <div style="font-size:12px;color:var(--txt);font-weight:500">Lembrete automático ao cliente</div>
+          <div style="font-size:10px;color:var(--txt3);font-weight:300;margin-top:2px">Avisar ao abrir agenda: clientes com corte hoje</div>
+        </div>
+        <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
+          <input type="checkbox" id="nc-remind-clients" ${notifyConfig.remindClientsOnDay?'checked':''} style="opacity:0;width:0;height:0;position:absolute" onchange="notifyConfig.remindClientsOnDay=this.checked"/>
+          <span style="position:absolute;inset:0;background:${notifyConfig.remindClientsOnDay?'var(--gold)':'var(--bg5)'};border-radius:24px;transition:.3s;display:flex;align-items:center;padding:0 4px;justify-content:${notifyConfig.remindClientsOnDay?'flex-end':'flex-start'}"><span style="width:16px;height:16px;background:#fff;border-radius:50%;display:block"></span></span>
+        </label>
+      </div>
+
+      <!-- WhatsApp padrão do barbeiro -->
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">WhatsApp do barbeiro (padrão) <span style="color:var(--txt3);font-size:10px">— DDD + número</span></label>
+        <input class="form-input" type="tel" id="nc-barber-phone" value="${notifyConfig.barberPhone}" placeholder="11999999999"/>
+      </div>
+
+      <!-- URL do servidor WA -->
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">URL do Servidor WhatsApp <span style="color:var(--txt3);font-size:10px">— do Render.com</span></label>
+        <input class="form-input" type="url" id="nc-wa-url" value="${notifyConfig.waServerUrl}" placeholder="https://seu-servidor.onrender.com"/>
+      </div>
+
+      <!-- API Key do servidor -->
+      <div class="form-group" style="margin-bottom:16px">
+        <label class="form-label">API Key do Servidor <span style="color:var(--txt3);font-size:10px">— definida no Render (env API_KEY)</span></label>
+        <input class="form-input" type="text" id="nc-wa-key" value="${notifyConfig.waServerKey||'barberapp2024'}" placeholder="barberapp2024"/>
+      </div>
+
+      <button class="btn btn-gold" onclick="saveNotifyConfig()" style="font-size:13px">💾 Salvar configurações de notificação</button>
+
+      <!-- Teste -->
+      <div style="margin-top:12px;padding-top:12px;border-top:0.5px solid rgba(255,255,255,0.05)">
+        <div style="font-size:11px;color:var(--txt3);margin-bottom:8px">Testar configuração:</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button class="btn btn-outline" style="font-size:11px" onclick="testNotifyBarber()">📤 Testar notif. barbeiro</button>
+          <button class="btn btn-outline" style="font-size:11px" onclick="testRemindersToday()">🔔 Testar lembretes</button>
+        </div>
+      </div>
+    </div>`;
+
+  _tempLogoData='';
+}
+
+let _tempLogoData='';
+function previewLogo(input){
+  const f=input.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    _tempLogoData=e.target.result;
+    const wrap=document.getElementById('logo-prev-wrap');
+    if(wrap) wrap.innerHTML=`<img class="logo-preview-img" src="${_tempLogoData}" alt="Preview"/>`;
+    const btn=document.getElementById('logo-save-btn');
+    if(btn)btn.disabled=false;
+  };
+  r.readAsDataURL(f);
+}
+async function saveLogoFromAdmin(){
+  if(!_tempLogoData)return;
+  const btn=document.getElementById('logo-save-btn');
+  if(btn){btn.disabled=true;btn.textContent='Salvando...';}
+  await saveLogo(_tempLogoData);
+  _tempLogoData='';
+  const resetBtn=document.getElementById('logo-reset-btn');
+  if(resetBtn)resetBtn.disabled=false;
+  if(btn){btn.textContent='✓ Aplicado!';}
+  setTimeout(()=>{if(btn){btn.textContent='✓ Aplicar logo';}},2000);
+}
+async function resetLogo(){
+  await saveLogo('');
+  _tempLogoData='';
+  const wrap=document.getElementById('logo-prev-wrap');
+  if(wrap) wrap.innerHTML=`<span class="logo-preview-text">✦ Barber App</span>`;
+  const btn=document.getElementById('logo-reset-btn');
+  if(btn)btn.disabled=true;
+}
+
+async function admDel(id){
+  // Busca dados do agendamento para mostrar no modal de confirmação
+  const snap=await fdb.collection('bookings').doc(id).get();
+  const b=snap.exists?snap.data():{};
+  cancelTarget=id;
+  const info=document.getElementById('cancel-booking-info');
+  if(info) info.innerHTML=`📅 ${b.dateStr||''} às ${b.time||''}<br>✂ ${b.svc||''} · ${b.barber||''}<br>👤 ${b.name||''}`;
+  document.getElementById('cancel-modal').style.display='flex';
+  document.getElementById('cancel-confirm-btn').onclick=async()=>{
+    await fdb.collection('bookings').doc(cancelTarget).update({status:'cancelled'});
+    closeCancelModal();
+  };
+}
+async function sendWA(id){
+  const snap=await fdb.collection('bookings').doc(id).get();
+  if(!snap.exists)return;
+  const b=snap.data();
+  const msg=encodeURIComponent(`✦ BARBER APP — Lembrete\n\nOlá *${b.name}*! Seu agendamento é hoje:\n• ${b.svc} com ${b.barber}\n• ${b.dateStr} às ${b.time}\n\nAté lá! 💈`);
+  const p=b.phone.startsWith('55')?b.phone:'55'+b.phone.replace(/\D/g,'');
+  window.open('https://wa.me/'+p+'?text='+msg,'_blank');
+  try{await fdb.collection('bookings').doc(id).update({reminderSent:true});}catch(e){}
+}
+
+// ── ADMIN BARBEIROS — realtime ──
+function admBarbeiros(container){
+  container.innerHTML=`<div id="barbers-grid"></div><button class="btn btn-outline" style="margin-top:10px" onclick="addBarber()">+ Adicionar barbeiro</button>`;
+  admUnsubscribe=fdb.collection('barbers').onSnapshot(snap=>{
+    DB.barbers=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const el=document.getElementById('barbers-grid');if(!el)return;
+    el.innerHTML=`<div class="edit-grid">${DB.barbers.map(b=>`
+      <div class="edit-card animate-up" onclick="editBarber('${b.id}')">
+        <div class="edit-photo">${b.photo?`<img src="${b.photo}">`:`<span style="font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--txt2)">${b.initials}</span>`}</div>
+        <div class="edit-name">${b.name}</div><div class="edit-sub">${b.spec}</div>
+        <div class="edit-price">★ ${b.rat}</div>
+      </div>`).join('')}</div>`;
+  });
+}
+
+// ── ADMIN SERVIÇOS — realtime ──
+function admServicos(container){
+  container.innerHTML=`<div id="svcs-grid"></div><button class="btn btn-outline" style="margin-top:10px" onclick="addService()">+ Adicionar serviço</button>`;
+  admUnsubscribe=fdb.collection('services').onSnapshot(snap=>{
+    DB.services=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const el=document.getElementById('svcs-grid');if(!el)return;
+    el.innerHTML=`<div class="edit-grid">${DB.services.map(s=>`
+      <div class="edit-card animate-up" onclick="editService('${s.id}')">
+        <div class="svc-icon-wrap" style="width:48px;height:48px;border-radius:12px;margin:0 auto 8px;font-size:20px">${s.photo?`<img src="${s.photo}">`:`<span>${s.icon}</span>`}</div>
+        <div class="edit-name">${s.name}</div><div class="edit-sub">${s.dur}</div>
+        <div class="edit-price">R$${s.price}</div>
+      </div>`).join('')}</div>`;
+  });
+}
+
+// ── CRUD BARBEIROS ──
+function editBarber(id){
+  const b=DB.barbers.find(x=>x.id===id);tempPhoto=b.photo||'';
+  document.getElementById('modal-title').textContent='Editar barbeiro';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="photo-upload" onclick="document.getElementById('pb').click()">
+      <div class="photo-preview">${b.photo?`<img src="${b.photo}" id="pp-b">`:`<span id="pp-b" style="font-size:24px;color:var(--txt3)">${b.initials}</span>`}</div>
+      <div class="photo-upload-text">Toque para alterar a foto</div>
+      <input type="file" id="pb" accept="image/*" style="display:none" onchange="previewPhoto(this,'pp-b','barber')">
+    </div>
+    <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="e-name" value="${b.name}"/></div>
+    <div class="form-group"><label class="form-label">Especialidade</label><input class="form-input" id="e-spec" value="${b.spec}"/></div>
+    <div class="form-group"><label class="form-label">Avaliação</label><input class="form-input" id="e-rat" value="${b.rat}" type="number" min="1" max="5" step="0.1"/></div>
+    <div class="form-group"><label class="form-label">WhatsApp do barbeiro <span style="color:var(--txt3);font-size:10px">(para notificações)</span></label><input class="form-input" id="e-bphone" value="${b.phone||''}" placeholder="11999999999" type="tel"/></div>
+    <button class="btn btn-gold" onclick="saveBarber('${id}')" style="margin-bottom:8px">Salvar alterações</button>
+    <button class="btn btn-danger" onclick="confirmDelBarber('${id}')" style="margin-bottom:8px">🗑 Excluir profissional</button>
+    <button class="btn btn-outline" onclick="closeModalDirect()">Cancelar</button>`;
+  document.getElementById('modal').style.display='flex';
+}
+function addBarber(){
+  tempPhoto='';
+  document.getElementById('modal-title').textContent='Novo barbeiro';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="e-name" placeholder="Nome completo"/></div>
+    <div class="form-group"><label class="form-label">Especialidade</label><input class="form-input" id="e-spec" placeholder="Ex: Degradê & Barba"/></div>
+    <div class="form-group"><label class="form-label">Avaliação</label><input class="form-input" id="e-rat" value="5.0" type="number" min="1" max="5" step="0.1"/></div>
+    <div class="form-group"><label class="form-label">WhatsApp do barbeiro <span style="color:var(--txt3);font-size:10px">(para notificações)</span></label><input class="form-input" id="e-bphone" placeholder="11999999999" type="tel"/></div>
+    <button class="btn btn-gold" onclick="createBarber()" style="margin-bottom:8px">Adicionar</button>
+    <button class="btn btn-outline" onclick="closeModalDirect()">Cancelar</button>`;
+  document.getElementById('modal').style.display='flex';
+}
+async function createBarber(){
+  const name=document.getElementById('e-name').value.trim();if(!name)return;
+  const phone=(document.getElementById('e-bphone')?.value||'').replace(/\D/g,'');
+  await fdb.collection('barbers').add({name,spec:document.getElementById('e-spec').value||'Barbeiro',rat:document.getElementById('e-rat').value||'5.0',photo:'',initials:name.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase(),phone});
+  closeModalDirect();
+}
+async function saveBarber(id){
+  const n=document.getElementById('e-name').value;
+  const phone=(document.getElementById('e-bphone')?.value||'').replace(/\D/g,'');
+  await fdb.collection('barbers').doc(id).update({name:n,spec:document.getElementById('e-spec').value,rat:document.getElementById('e-rat').value,initials:n.split(' ').slice(0,2).map(x=>x[0]).join('').toUpperCase(),phone,...(tempPhoto?{photo:tempPhoto}:{})});
+  closeModalDirect();
+}
+function confirmDelBarber(id){
+  const b=DB.barbers.find(x=>x.id===id);
+  document.getElementById('modal-title').textContent='Excluir profissional?';
+  document.getElementById('modal-body').innerHTML=`
+    <p style="font-size:13px;color:var(--txt2);margin-bottom:20px;line-height:1.7;font-weight:300">Tem certeza que deseja excluir <strong style="color:var(--txt)">${b.name}</strong>?</p>
+    <button class="btn btn-danger" onclick="delBarber('${id}')" style="margin-bottom:8px">Sim, excluir</button>
+    <button class="btn btn-outline" onclick="closeModalDirect()">Cancelar</button>`;
+}
+async function delBarber(id){await fdb.collection('barbers').doc(id).delete();closeModalDirect();}
+
+// ── CRUD SERVIÇOS ──
+function editService(id){
+  const s=DB.services.find(x=>x.id===id);tempPhoto=s.photo||'';
+  document.getElementById('modal-title').textContent='Editar serviço';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="photo-upload" onclick="document.getElementById('ps').click()">
+      <div class="photo-preview">${s.photo?`<img src="${s.photo}" id="pp-s">`:`<span id="pp-s" style="font-size:28px">${s.icon}</span>`}</div>
+      <div class="photo-upload-text">Toque para alterar a imagem</div>
+      <input type="file" id="ps" accept="image/*" style="display:none" onchange="previewPhoto(this,'pp-s','service')">
+    </div>
+    <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="e-sname" value="${s.name}"/></div>
+    <div class="form-group"><label class="form-label">Duração</label><input class="form-input" id="e-dur" value="${s.dur}"/></div>
+    <div class="form-group"><label class="form-label">Preço (R$)</label><input class="form-input" id="e-price" value="${s.price}" type="number" min="1"/></div>
+    <button class="btn btn-gold" onclick="saveService('${id}')" style="margin-bottom:8px">Salvar alterações</button>
+    <button class="btn btn-danger" onclick="confirmDelService('${id}')" style="margin-bottom:8px">🗑 Excluir serviço</button>
+    <button class="btn btn-outline" onclick="closeModalDirect()">Cancelar</button>`;
+  document.getElementById('modal').style.display='flex';
+}
+function addService(){
+  tempPhoto='';
+  document.getElementById('modal-title').textContent='Novo serviço';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-group"><label class="form-label">Nome</label><input class="form-input" id="e-sname" placeholder="Ex: Corte de cabelo"/></div>
+    <div class="form-group"><label class="form-label">Duração</label><input class="form-input" id="e-dur" placeholder="Ex: 30 min"/></div>
+    <div class="form-group"><label class="form-label">Preço (R$)</label><input class="form-input" id="e-price" type="number" min="1" placeholder="45"/></div>
+    <button class="btn btn-gold" onclick="createService()" style="margin-bottom:8px">Adicionar</button>
+    <button class="btn btn-outline" onclick="closeModalDirect()">Cancelar</button>`;
+  document.getElementById('modal').style.display='flex';
+}
+async function createService(){
+  const name=document.getElementById('e-sname').value.trim();if(!name)return;
+  await fdb.collection('services').add({name,dur:document.getElementById('e-dur').value||'30 min',price:parseInt(document.getElementById('e-price').value)||0,icon:'✂',photo:''});
+  closeModalDirect();
+}
+async function saveService(id){
+  await fdb.collection('services').doc(id).update({name:document.getElementById('e-sname').value,dur:document.getElementById('e-dur').value,price:parseInt(document.getElementById('e-price').value)||0,...(tempPhoto?{photo:tempPhoto}:{})});
+  closeModalDirect();
+}
+function confirmDelService(id){
+  const s=DB.services.find(x=>x.id===id);
+  document.getElementById('modal-title').textContent='Excluir serviço?';
+  document.getElementById('modal-body').innerHTML=`
+    <p style="font-size:13px;color:var(--txt2);margin-bottom:20px;line-height:1.7;font-weight:300">Tem certeza que deseja excluir <strong style="color:var(--txt)">${s.name}</strong>?</p>
+    <button class="btn btn-danger" onclick="delService('${id}')" style="margin-bottom:8px">Sim, excluir</button>
+    <button class="btn btn-outline" onclick="closeModalDirect()">Cancelar</button>`;
+}
+async function delService(id){await fdb.collection('services').doc(id).delete();closeModalDirect();}
+
+// ── PHOTO PREVIEW ──
+function previewPhoto(input,prevId,type){
+  const f=input.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    tempPhoto=e.target.result;
+    const prev=document.getElementById(prevId);
+    if(prev)prev.outerHTML=`<img id="${prevId}" src="${tempPhoto}" style="width:100%;height:100%;object-fit:cover;border-radius:${type==='barber'?'50%':'12px'}">`;
+  };
+  r.readAsDataURL(f);
+}
+
+// ── MODAIS ──
+function closeModal(e){if(!e||e.target===document.getElementById('modal'))closeModalDirect();}
+function closeModalDirect(){document.getElementById('modal').style.display='none';tempPhoto='';}
+
+// ── ADMIN RELATÓRIOS MENSAIS ──
+let reportMonth=new Date().getMonth(), reportYear=new Date().getFullYear();
+
+function admRelatorios(container){
+  container.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;background:var(--bg2);border-radius:12px;padding:12px 16px;border:0.5px solid rgba(255,255,255,0.05)">
+      <button class="cal-nav" onclick="reportNav(-1)">‹</button>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--txt)" id="rep-month-lbl">${MES[reportMonth]} ${reportYear}</div>
+      <button class="cal-nav" onclick="reportNav(1)">›</button>
+    </div>
+    <div id="rep-content"><div class="empty">Carregando...</div></div>`;
+  loadReport();
+}
+
+function reportNav(dir){
+  reportMonth+=dir;
+  if(reportMonth<0){reportMonth=11;reportYear--;}
+  if(reportMonth>11){reportMonth=0;reportYear++;}
+  const lbl=document.getElementById('rep-month-lbl');
+  if(lbl)lbl.textContent=MES[reportMonth]+' '+reportYear;
+  loadReport();
+}
+
+async function loadReport(){
+  const el=document.getElementById('rep-content');
+  if(!el)return;
+  el.innerHTML='<div class="empty">Carregando...</div>';
+  const monthStr=reportYear+'-'+String(reportMonth+1).padStart(2,'0');
+  try{
+    const snap=await fdb.collection('bookings')
+      .where('date','>=',monthStr+'-01')
+      .where('date','<=',monthStr+'-31')
+      .get();
+    const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const confirmed=all.filter(b=>b.status!=='cancelled');
+    const cancelled=all.filter(b=>b.status==='cancelled');
+    const revenue=confirmed.reduce((a,b)=>a+(b.price||0),0);
+    const bySvc={};
+    confirmed.forEach(b=>{if(!bySvc[b.svc])bySvc[b.svc]={count:0,rev:0};bySvc[b.svc].count++;bySvc[b.svc].rev+=b.price||0;});
+    const svcArr=Object.entries(bySvc).sort((a,b)=>b[1].rev-a[1].rev);
+    const maxSvcRev=svcArr[0]?svcArr[0][1].rev:1;
+    const byBarber={};
+    confirmed.forEach(b=>{if(!byBarber[b.barber])byBarber[b.barber]={count:0,rev:0};byBarber[b.barber].count++;byBarber[b.barber].rev+=b.price||0;});
+    const barberArr=Object.entries(byBarber).sort((a,b)=>b[1].rev-a[1].rev);
+    const maxBarberRev=barberArr[0]?barberArr[0][1].rev:1;
+    const taxaCanc=all.length?Math.round((cancelled.length/all.length)*100):0;
+    const ticketMedio=confirmed.length?(revenue/confirmed.length).toFixed(2).replace('.',','):'0,00';
+    const svcRows=svcArr.length?svcArr.map(([name,d])=>
+      `<div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:var(--txt2)">${name}</span><span style="color:var(--gold)">R$${d.rev}</span></div>
+        <div style="height:5px;background:var(--bg3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${Math.round((d.rev/maxSvcRev)*100)}%;background:var(--gold);border-radius:3px;transition:width .6s"></div></div>
+        <div style="font-size:10px;color:var(--txt3);margin-top:2px">${d.count} atendimento${d.count!==1?'s':''}</div>
+      </div>`).join(''):'<div style="font-size:12px;color:var(--txt3)">Sem dados</div>';
+    const barberRows=barberArr.length?barberArr.map(([name,d])=>
+      `<div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:var(--txt2)">${name}</span><span style="color:var(--green)">R$${d.rev}</span></div>
+        <div style="height:5px;background:var(--bg3);border-radius:3px;overflow:hidden"><div style="height:100%;width:${Math.round((d.rev/maxBarberRev)*100)}%;background:var(--green);border-radius:3px;transition:width .6s"></div></div>
+        <div style="font-size:10px;color:var(--txt3);margin-top:2px">${d.count} atendimento${d.count!==1?'s':''}</div>
+      </div>`).join(''):'<div style="font-size:12px;color:var(--txt3)">Sem dados</div>';
+
+    el.innerHTML=`
+      <div style="background:var(--bg2);border:0.5px solid rgba(255,255,255,0.05);border-radius:var(--r);padding:16px;margin-bottom:14px" class="animate-up">
+        <div class="section-lbl">Resumo · ${MES[reportMonth]} ${reportYear}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div style="text-align:center"><div style="font-family:'Cormorant Garamond',serif;font-size:30px;color:var(--green)">R$${revenue.toLocaleString('pt-BR')}</div><div style="font-size:10px;color:var(--txt3);margin-top:2px">Receita total</div></div>
+          <div style="text-align:center"><div style="font-family:'Cormorant Garamond',serif;font-size:30px;color:var(--gold)">${confirmed.length}</div><div style="font-size:10px;color:var(--txt3);margin-top:2px">Atendimentos</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+          <div style="background:var(--bg3);border-radius:10px;padding:10px;text-align:center"><div style="font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--red)">${cancelled.length}</div><div style="font-size:9px;color:var(--txt3);margin-top:2px">Cancelados</div></div>
+          <div style="background:var(--bg3);border-radius:10px;padding:10px;text-align:center"><div style="font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--txt2)">${taxaCanc}%</div><div style="font-size:9px;color:var(--txt3);margin-top:2px">Taxa cancel.</div></div>
+          <div style="background:var(--bg3);border-radius:10px;padding:10px;text-align:center"><div style="font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--gold)">R$${ticketMedio}</div><div style="font-size:9px;color:var(--txt3);margin-top:2px">Ticket médio</div></div>
+        </div>
+      </div>
+      <div style="background:var(--bg2);border:0.5px solid rgba(255,255,255,0.05);border-radius:var(--r);padding:16px;margin-bottom:14px" class="animate-up delay-1">
+        <div class="section-lbl">Por serviço</div>${svcRows}
+      </div>
+      <div style="background:var(--bg2);border:0.5px solid rgba(255,255,255,0.05);border-radius:var(--r);padding:16px;margin-bottom:14px" class="animate-up delay-2">
+        <div class="section-lbl">Por barbeiro</div>${barberRows}
+      </div>
+      <div style="background:var(--bg2);border:0.5px solid var(--gold-border);border-radius:var(--r);padding:16px;margin-bottom:14px" class="animate-up delay-3">
+        <div class="section-lbl" style="color:var(--gold)">📋 Fechamento do mês</div>
+        <div style="font-size:12px;color:var(--txt2);line-height:2.2;font-weight:300">
+          <div style="display:flex;justify-content:space-between"><span>Atendimentos realizados</span><span style="color:var(--txt)">${confirmed.length}</span></div>
+          <div style="display:flex;justify-content:space-between"><span>Cancelamentos</span><span style="color:var(--red)">${cancelled.length}</span></div>
+          <div style="border-top:0.5px solid rgba(255,255,255,0.05);margin:6px 0"></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--gold)">Receita bruta</span><span style="color:var(--green);font-size:16px;font-family:'Cormorant Garamond',serif">R$${revenue.toLocaleString('pt-BR')}</span></div>
+        </div>
+        <button class="btn btn-outline" style="margin-top:12px;font-size:12px" onclick="exportReport(${reportMonth},${reportYear},${revenue},${confirmed.length},${cancelled.length})">📤 Exportar relatório (.txt)</button>
+      </div>`;
+  }catch(e){
+    if(el)el.innerHTML='<div class="empty">Erro ao carregar.<br><span style="font-size:10px;color:var(--txt3)">Verifique os índices do Firestore no console.</span></div>';
+    console.error('loadReport:',e);
+  }
+}
+
+function exportReport(month,year,revenue,confirmed,cancelled){
+  const lines=[
+    'Barber App — Relatório Mensal',
+    'Período: '+MES[month]+' '+year,
+    'Exportado em: '+new Date().toLocaleDateString('pt-BR')+' '+new Date().toLocaleTimeString('pt-BR'),
+    '','── Resumo ──',
+    'Atendimentos realizados: '+confirmed,
+    'Cancelamentos: '+cancelled,
+    'Receita bruta: R$'+revenue.toLocaleString('pt-BR'),
+    'Ticket médio: R$'+(confirmed>0?(revenue/confirmed).toFixed(2).replace('.',','):'0,00'),
+  ];
+  const blob=new Blob([lines.join('\n')],{type:'text/plain'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='barberapp_'+year+'_'+String(month+1).padStart(2,'0')+'.txt';
+  a.click();
+}
+
+// ── CONFIG DE HORÁRIOS / FERIADOS ──
+let _schWorkDays=[...scheduleConfig.workDays];
+
+function toggleDay(i){
+  const btn=document.getElementById('daytog-'+i);
+  if(!btn)return;
+  if(_schWorkDays.includes(i)){
+    _schWorkDays=_schWorkDays.filter(d=>d!==i);
+    btn.classList.remove('on');
+  }else{
+    _schWorkDays.push(i);
+    btn.classList.add('on');
+  }
+}
+
+async function saveSchedule(){
+  const newCfg={
+    workDays:[..._schWorkDays].sort(),
+    startTime:document.getElementById('sch-start').value||'08:00',
+    endTime:document.getElementById('sch-end').value||'19:00',
+    lunchStart:document.getElementById('sch-lunch-start').value||'12:00',
+    lunchEnd:document.getElementById('sch-lunch-end').value||'13:00',
+    slotMin:parseInt(document.getElementById('sch-slot').value)||30,
+    holidays:scheduleConfig.holidays||[]
+  };
+  showLoading('Salvando...');
+  try{
+    await fdb.collection('config').doc('schedule').set(newCfg);
+    scheduleConfig={...newCfg};
+    _schWorkDays=[...scheduleConfig.workDays];
+    hideLoading();
+    const btn=document.querySelector('[onclick="saveSchedule()"]');
+    if(btn){const orig=btn.textContent;btn.textContent='✓ Salvo!';setTimeout(()=>btn.textContent=orig,2000);}
+  }catch(e){hideLoading();alert('Erro ao salvar horários.');console.error(e);}
+}
+
+function fmtHolidayDate(d){const[y,m,day]=d.split('-');return day+'/'+m+'/'+y;}
+
+async function addHoliday(){
+  const val=document.getElementById('new-holiday').value;
+  if(!val||(scheduleConfig.holidays||[]).includes(val))return;
+  const h=[...(scheduleConfig.holidays||[]),val].sort();
+  await saveHolidays(h);
+  document.getElementById('new-holiday').value='';
+  renderHolidayTags();
+}
+async function quickAddHoliday(date){
+  if((scheduleConfig.holidays||[]).includes(date))return;
+  const h=[...(scheduleConfig.holidays||[]),date].sort();
+  await saveHolidays(h);
+  renderHolidayTags();
+}
+async function removeHoliday(date){
+  const h=(scheduleConfig.holidays||[]).filter(d=>d!==date);
+  await saveHolidays(h);
+  renderHolidayTags();
+}
+async function saveHolidays(list){
+  scheduleConfig.holidays=list;
+  try{await fdb.collection('config').doc('schedule').set({holidays:list},{merge:true});}catch(e){console.error(e);}
+}
+
+// ── SALVAR CONFIG DE NOTIFICAÇÕES ──
+async function saveNotifyConfig(){
+  notifyConfig.barberPhone=(document.getElementById('nc-barber-phone')?.value||'').replace(/\D/g,'');
+  notifyConfig.waServerUrl=(document.getElementById('nc-wa-url')?.value||'').trim();
+  notifyConfig.waServerKey=(document.getElementById('nc-wa-key')?.value||'barberapp2024').trim();
+  notifyConfig.notifyBarberOnBook=document.getElementById('nc-notify-barber')?.checked??true;
+  notifyConfig.remindClientsOnDay=document.getElementById('nc-remind-clients')?.checked??true;
+  showLoading('Salvando...');
+  try{
+    await fdb.collection('config').doc('notifications').set(notifyConfig);
+    hideLoading();
+    const btn=document.querySelector('[onclick="saveNotifyConfig()"]');
+    if(btn){const o=btn.textContent;btn.textContent='✓ Salvo!';setTimeout(()=>btn.textContent=o,2000);}
+  }catch(e){hideLoading();alert('Erro ao salvar.');console.error(e);}
+}
+async function testNotifyBarber(){
+  const phone=(document.getElementById('nc-barber-phone')?.value||notifyConfig.barberPhone||'').replace(/\D/g,'');
+  if(!phone){alert('Informe o WhatsApp do barbeiro primeiro.');return;}
+  const msg=`✦ BARBER APP — Teste ✅\n\nServidor de notificações funcionando!\nMensagens automáticas ativas. 💈`;
+  const ok=await sendViaWAServer(phone,msg);
+  if(ok) alert('✅ Mensagem enviada! Verifique o WhatsApp.');
+}
+async function testRemindersToday(){
+  await sendRemindersToday();
+}
+function renderHolidayTags(){
+  const el=document.getElementById('holiday-tags');
+  if(!el)return;
+  const tags=(scheduleConfig.holidays||[]).map(h=>
+    `<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(224,85,85,0.1);border:0.5px solid rgba(224,85,85,0.2);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--red);margin:3px">${fmtHolidayDate(h)}<button onclick="removeHoliday('${h}')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;line-height:1;padding:0">×</button></span>`
+  ).join('');
+  el.innerHTML=tags||'<span style="font-size:11px;color:var(--txt3)">Nenhum feriado cadastrado</span>';
+}
+
+// ── INIT ──
+document.getElementById('auth-phone').addEventListener('input',function(){
+  document.getElementById('auth-btn').disabled=this.value.replace(/\D/g,'').length<10;
+});
+
+let tapCount=0,tapTimer=null;
+const tapTarget=document.getElementById('auth-logo-wrap')||document.getElementById('auth-brand')||document.querySelector('.auth-brand');
+if(tapTarget){
+  tapTarget.addEventListener('click',()=>{
+    tapCount++;if(tapTimer)clearTimeout(tapTimer);
+    tapTimer=setTimeout(()=>tapCount=0,1000);
+    if(tapCount>=5){tapCount=0;openAdmin();}
+  });
+}
+
+initDB();
+</script>
+</body>
+</html>

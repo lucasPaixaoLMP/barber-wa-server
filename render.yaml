@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: barber-wa-server
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: API_KEY
+        generateValue: true
+      - key: PORT
+        value: 3000
+    disk:
+      name: wa-session
+      mountPath: /opt/render/project/src/auth_baileys
+      sizeGB: 1
