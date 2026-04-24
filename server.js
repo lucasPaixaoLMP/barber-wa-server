@@ -256,7 +256,7 @@ app.post('/send', authMiddleware, async (req, res) => {
   }
 });
 
-// ── Disparar lembretes manualmente ──
+// ── Disparar lembretes manualmente (só hoje) ──
 app.post('/reminders', authMiddleware, async (req, res) => {
   console.log('[Reminders] Disparo manual solicitado.');
   try {
@@ -266,6 +266,46 @@ app.post('/reminders', authMiddleware, async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// ── Disparar lembretes de TODOS os agendamentos confirmados (teste) ──
+app.post('/reminders/all', authMiddleware, async (req, res) => {
+  if (!db) return res.status(503).json({ error: 'Firestore nao configurado.' });
+  if (!isConnected) return res.status(503).json({ error: 'WhatsApp nao conectado.' });
+  console.log('[Reminders/All] Disparo de teste em todos os agendamentos...');
+  let sent = 0, failed = 0, skipped = 0;
+  try {
+    const snap = await db.collection('bookings')
+      .where('status', '==', 'confirmed')
+      .get();
+    if (snap.empty) return res.json({ success: true, sent, failed, skipped, total: 0 });
+    const bookings = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    console.log('[Reminders/All] Total:', bookings.length);
+    for (const b of bookings) {
+      if (!b.phone) { skipped++; continue; }
+      const msg =
+        `[TESTE] ✦ *Barber App — Lembrete* 💈\n\n` +
+        `Ola *${b.name}*! Este e um lembrete de teste:\n\n` +
+        `✂ *${b.svc}*\n` +
+        `💈 Barbeiro: ${b.barber}\n` +
+        `📅 ${b.dateStr} as *${b.time}*\n\n` +
+        `Chegue 5 minutos antes. Te esperamos! 🤝`;
+      try {
+        await sendWA(b.phone, msg);
+        console.log('[Reminders/All] Enviado para', b.phone, '(' + b.name + ')');
+        sent++;
+        await new Promise(r => setTimeout(r, 1500));
+      } catch (e) {
+        console.error('[Reminders/All] Falha:', b.phone, e.message);
+        failed++;
+      }
+    }
+    console.log('[Reminders/All] Concluido:', sent, 'enviados,', failed, 'falhas,', skipped, 'sem numero.');
+    res.json({ success: true, sent, failed, skipped, total: bookings.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 
 // ── Desconectar / resetar sessão ──
 app.post('/logout', authMiddleware, async (req, res) => {
