@@ -118,7 +118,7 @@ async function sendDailyReminders() {
     return { sent: 0, failed: 0, skipped: 0 };
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
   console.log(`[Cron] Buscando agendamentos de hoje (${today})...`);
 
   let sent = 0, failed = 0, skipped = 0;
