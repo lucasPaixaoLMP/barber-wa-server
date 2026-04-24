@@ -195,7 +195,7 @@ const TIMES_DEFAULT=['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11
 
 let cM=new Date().getMonth(), cY=new Date().getFullYear();
 let DB={barbers:[],services:[],bookings:[]};
-let S={step:1,barber:null,svc:null,date:null,time:null,tab:'book',bookingCode:''};
+let S={step:1,barber:null,svc:null,date:null,time:null,tab:'book'};
 let currentUser=null, cancelTarget=null, editTarget=null, tempPhoto='', admUnsubscribe=null;
 let appLogoData=''; // base64 ou URL da logo personalizada
 let notifyConfig={barberPhone:'',waServerUrl:'',waServerKey:'barberapp2024',notifyBarberOnBook:true,remindClientsOnDay:true};
@@ -359,7 +359,7 @@ async function notifyBarber(bkData){
   if(!notifyConfig.notifyBarberOnBook) return {ok:false,reason:'disabled'};
   const barberObj=DB.barbers.find(x=>x.id===bkData.barberId)||{};
   const phone=(barberObj.phone||notifyConfig.barberPhone||'').replace(/\D/g,'');
-  const msg=`✦ *BARBER APP — Novo Agendamento*\n\nNovo cliente marcou horário! 💈\n\n👤 *${bkData.name}*\n📱 ${bkData.phone.replace(/^55/,'')}\n✂ ${bkData.svc}\n📅 ${bkData.dateStr} às ${bkData.time}\n💰 R$${bkData.price}\n🔖 Cód: ${bkData.code}`;
+  const msg=`✦ *BARBER APP — Novo Agendamento*\n\nNovo cliente marcou horário! 💈\n\n👤 *${bkData.name}*\n📱 ${bkData.phone.replace(/^55/,'')}\n✂ ${bkData.svc}\n📅 ${bkData.dateStr} às ${bkData.time}\n💰 R$${bkData.price}`;
   if(!phone){
     console.warn('[WA] Telefone do barbeiro não cadastrado. Cadastre em Admin > Barbeiros.');
     return {ok:false,reason:'no_phone',msg};
@@ -751,18 +751,16 @@ async function confirmBooking(){
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
     });
     await fdb.collection('users').doc(currentUser.phone).update({name});
-    const code=docRef.id.slice(-6).toUpperCase();
     // Notifica barbeiro automaticamente
     showLoading('Notificando barbeiro...');
-    const notifResult=await notifyBarber({name,phone:currentUser.phone,svc:sv.name,dateStr:ds,time:S.time,price:sv.price,code,barberId:b.id});
-    S.step=5;S.bookingCode=code;S.notifResult=notifResult;renderStep();
+    const notifResult=await notifyBarber({name,phone:currentUser.phone,svc:sv.name,dateStr:ds,time:S.time,price:sv.price,barberId:b.id});
+    S.step=5;S.notifResult=notifResult;renderStep();
   }catch(e){alert('Erro ao salvar. Verifique sua conexão.');console.error(e);}
   hideLoading();
 }
 
 // ── SUCESSO ──
 function stDone(){
-  const code=S.bookingCode;
   const nr=S.notifResult||{};
   let notifStatus='';
   if(nr.ok){
@@ -782,8 +780,7 @@ function stDone(){
   return`<div class="success-body animate-in">
     <div class="suc-ring">✓</div>
     <div class="suc-title">Agendado!</div>
-    <div class="suc-sub">Seu horário está confirmado.<br>Guarde o código abaixo.</div>
-    <div class="code-box">${code}</div>
+    <div class="suc-sub">Seu horário está confirmado!</div>
     ${notifStatus}
     <div class="wa-note" style="text-align:left">
       <div class="wa-icon">🎫</div>
@@ -820,7 +817,7 @@ function renderMyBookings(){
       const badgeTxt=eff==='cancelled'?'Cancelado':eff==='completed'?'Realizado':'Confirmado';
       return`<div class="booking-card animate-up">
         <div class="bc-header"><div class="bc-date">${b.dateStr} às ${b.time}</div><span class="bc-badge ${badgeCls}">${badgeTxt}</span></div>
-        <div class="bc-info">${b.svc} · ${b.barber}<br>R$${b.price} · Cód: ${b.id.slice(-6).toUpperCase()}</div>
+        <div class="bc-info">${b.svc} · ${b.barber}<br>R$${b.price}</div>
       </div>`;
     }).join('');
     c.innerHTML=`<div class="mybookings animate-up"><div class="my-title">Meus agendamentos</div><div class="my-sub">Histórico completo dos seus horários</div>${cards}</div>`;
