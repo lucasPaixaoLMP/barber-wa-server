@@ -3,6 +3,8 @@ const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLat
 const { Boom } = require('@hapi/boom');
 const qrcode = require('qrcode');
 const cors = require('cors');
+const cron = require('node-cron');
+const admin = require('firebase-admin');
 
 const app = express();
 app.use(express.json());
@@ -17,6 +19,24 @@ function authMiddleware(req, res, next) {
   next();
 }
 
+// ── Firebase Admin ──
+// Variável de ambiente: FIREBASE_SERVICE_ACCOUNT com o JSON da service account
+// (cole o conteúdo do arquivo JSON como string no painel do Render)
+let db = null;
+try {
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
+  if (serviceAccount.project_id) {
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    db = admin.firestore();
+    console.log('[Firebase] ✅ Conectado ao Firestore — projeto:', serviceAccount.project_id);
+  } else {
+    console.warn('[Firebase] ⚠ FIREBASE_SERVICE_ACCOUNT não configurada — lembretes automáticos desativados.');
+  }
+} catch (e) {
+  console.error('[Firebase] Erro ao inicializar:', e.message);
+}
+
+// ── WhatsApp ──
 let sock = null;
 let qrCodeData = null;
 let isConnected = false;
@@ -52,8 +72,7 @@ async function connectToWhatsApp() {
         isConnected = false;
         connectingNow = false;
         const code = new Boom(lastDisconnect?.error)?.output?.statusCode;
-        const reason = DisconnectReason;
-        if (code === reason.loggedOut) {
+        if (code === DisconnectReason.loggedOut) {
           console.log('[WA] Desconectado — faça login novamente em /');
         } else {
           console.log('[WA] Reconectando em 5s... (código:', code, ')');
@@ -77,6 +96,86 @@ async function connectToWhatsApp() {
     setTimeout(connectToWhatsApp, 10000);
   }
 }
+
+// ── Enviar mensagem WA ──
+async function sendWA(phone, message) {
+  if (!isConnected) throw new Error('WhatsApp não conectado');
+  let number = phone.replace(/\D/g, '');
+  if (!number.startsWith('55')) number = '55' + number;
+  const jid = number + '@s.whatsapp.net';
+  await sock.sendMessage(jid, { text: message });
+  return number;
+}
+
+// ── Lembretes automáticos ──
+async function sendDailyReminders() {
+  if (!db) {
+    console.warn('[Cron] Firestore não configurado — pulando lembretes.');
+    return { sent: 0, failed: 0, skipped: 0 };
+  }
+  if (!isConnected) {
+    console.warn('[Cron] WhatsApp desconectado — pulando lembretes.');
+    return { sent: 0, failed: 0, skipped: 0 };
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  console.log(`[Cron] Buscando agendamentos de hoje (${today})...`);
+
+  let sent = 0, failed = 0, skipped = 0;
+  try {
+    const snap = await db.collection('bookings')
+      .where('date', '==', today)
+      .where('status', '==', 'confirmed')
+      .get();
+
+    if (snap.empty) {
+      console.log('[Cron] Nenhum agendamento hoje.');
+      return { sent, failed, skipped };
+    }
+
+    const pending = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(b => !b.reminderSent);
+
+    console.log(`[Cron] ${pending.length} lembrete(s) pendente(s) de ${snap.size} agendamento(s).`);
+
+    for (const b of pending) {
+      if (!b.phone) { skipped++; continue; }
+      const msg =
+        `✦ *Barber App — Lembrete de hoje!* 💈\n\n` +
+        `Olá *${b.name}*! Só passando para lembrar:\n\n` +
+        `✂ *${b.svc}*\n` +
+        `💈 Barbeiro: ${b.barber}\n` +
+        `📅 Hoje às *${b.time}*\n\n` +
+        `Chegue 5 minutos antes. Te esperamos! 🤝`;
+      try {
+        await sendWA(b.phone, msg);
+        await db.collection('bookings').doc(b.id).update({ reminderSent: true });
+        console.log(`[Cron] ✅ Lembrete enviado → ${b.phone} (${b.name})`);
+        sent++;
+        // Pausa entre mensagens para evitar bloqueio
+        await new Promise(r => setTimeout(r, 1500));
+      } catch (e) {
+        console.error(`[Cron] ❌ Falha ao enviar para ${b.phone}:`, e.message);
+        failed++;
+      }
+    }
+
+    console.log(`[Cron] Concluído — ✅ ${sent} enviados, ❌ ${failed} falhas, ⏭ ${skipped} sem número.`);
+  } catch (e) {
+    console.error('[Cron] Erro ao buscar agendamentos:', e.message);
+  }
+  return { sent, failed, skipped };
+}
+
+// ── Cron: todo dia às 08:00 (horário do servidor) ──
+// Para ajustar o fuso horário, defina TZ=America/Sao_Paulo no Render
+cron.schedule('0 8 * * *', () => {
+  console.log('[Cron] ⏰ Disparando lembretes automáticos do dia...');
+  sendDailyReminders();
+}, { timezone: 'America/Sao_Paulo' });
+
+console.log('[Cron] ✅ Agendado para 08:00 (America/Sao_Paulo) todos os dias.');
 
 // ── Página inicial: QR Code ──
 app.get('/', (req, res) => {
@@ -130,7 +229,12 @@ img{border-radius:12px;border:3px solid #25D366;max-width:260px}
 
 // ── Status ──
 app.get('/status', (req, res) => {
-  res.json({ connected: isConnected, hasQR: !!qrCodeData, server: 'Barber WA Server v1.0' });
+  res.json({
+    connected: isConnected,
+    hasQR: !!qrCodeData,
+    firestore: !!db,
+    server: 'Barber WA Server v1.1'
+  });
 });
 
 // ── Enviar mensagem ──
@@ -142,18 +246,23 @@ app.post('/send', authMiddleware, async (req, res) => {
   if (!isConnected) {
     return res.status(503).json({ error: 'WhatsApp não conectado. Acesse / para reconectar.' });
   }
-
   try {
-    // Normaliza número: garante DDI 55 + apenas dígitos
-    let number = phone.replace(/\D/g, '');
-    if (!number.startsWith('55')) number = '55' + number;
-    const jid = number + '@s.whatsapp.net';
-
-    await sock.sendMessage(jid, { text: message });
+    const number = await sendWA(phone, message);
     console.log('[WA] Mensagem enviada para', number);
     res.json({ success: true, to: number });
   } catch (e) {
     console.error('[WA] Erro ao enviar:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Disparar lembretes manualmente ──
+app.post('/reminders', authMiddleware, async (req, res) => {
+  console.log('[Reminders] Disparo manual solicitado.');
+  try {
+    const result = await sendDailyReminders();
+    res.json({ success: true, ...result });
+  } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
