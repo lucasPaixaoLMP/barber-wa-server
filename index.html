@@ -254,6 +254,7 @@ async function initDB(){
     }
     if(notifyCfg.exists){
       notifyConfig={...notifyConfig,...notifyCfg.data()};
+      startKeepAlive(); // acorda servidor e mantém vivo
     }
     if(!DB.barbers.length||!DB.services.length) await seedData().then(async()=>{
       const [bs2,ss2]=await Promise.all([fdb.collection('barbers').get(),fdb.collection('services').get()]);
@@ -365,24 +366,47 @@ async function notifyBarber(bkData){
 
 // ── ENVIO VIA SERVIDOR PRÓPRIO ──
 async function sendViaWAServer(phone,message){
-  const url=notifyConfig.waServerUrl;
+  const url=(notifyConfig.waServerUrl||'').trim();
   const key=notifyConfig.waServerKey||'barberapp2024';
-  if(url){
-    try{
-      const r=await fetch(url.replace(/\/$/,'')+'/send',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':key},
-        body:JSON.stringify({phone,message})
-      });
-      const d=await r.json();
-      if(d.success) return true;
-      console.warn('WA Server:',d.error);
-    }catch(e){console.warn('WA Server fetch error:',e);}
+  if(!url){
+    console.warn('[WA] Servidor nao configurado. Configure em Admin > Config > Notificacoes.');
+    return false;
   }
-  // Fallback: abre WhatsApp manual
-  const fullPhone=phone.startsWith('55')?phone:'55'+phone;
-  setTimeout(()=>window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`,'_blank'),600);
-  return false;
+  try{
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),12000);
+    const r=await fetch(url.replace(/\/$/,'')+'/send',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key},
+      body:JSON.stringify({phone,message}),
+      signal:controller.signal
+    });
+    clearTimeout(timeout);
+    const d=await r.json();
+    if(d.success){
+      console.log('[WA] Mensagem enviada para',phone);
+      return true;
+    }
+    console.warn('[WA] Erro do servidor:',d.error);
+    return false;
+  }catch(e){
+    console.warn('[WA] Falhou (servidor dormindo ou offline):',e.message);
+    return false;
+  }
+}
+
+// ── KEEP-ALIVE: acorda o servidor a cada 13 minutos ──
+function startKeepAlive(){
+  const url=(notifyConfig.waServerUrl||'').trim();
+  if(!url) return;
+  setInterval(async()=>{
+    try{
+      await fetch(url.replace(/\/$/,'')+'/status',{method:'GET'});
+      console.log('[WA] Keep-alive ping ✓');
+    }catch(e){}
+  }, 13 * 60 * 1000); // 13 minutos
+  // Ping imediato ao iniciar
+  fetch(url.replace(/\/$/,'')+'/status').catch(()=>{});
 }
 
 // ── LEMBRETES DO DIA ──
@@ -390,14 +414,17 @@ async function sendRemindersToday(){
   if(!notifyConfig.remindClientsOnDay) return;
   const today=new Date().toISOString().slice(0,10);
   try{
+    // Só 2 filtros = sem necessidade de índice composto no Firestore
     const snap=await fdb.collection('bookings')
       .where('date','==',today)
       .where('status','==','confirmed')
-      .where('reminderSent','==',false)
       .get();
     if(snap.empty) return;
-    const pending=snap.docs.map(d=>({id:d.id,...d.data()}));
-    // Mostra toast de lembretes pendentes
+    // Filtra reminderSent no cliente
+    const pending=snap.docs
+      .map(d=>({id:d.id,...d.data()}))
+      .filter(b=>!b.reminderSent);
+    if(!pending.length) return;
     showReminderToast(pending);
   }catch(e){console.warn('sendRemindersToday:',e);}
 }
@@ -674,11 +701,7 @@ function st4(){
       <label class="form-label">Seu nome</label>
       <input class="form-input" type="text" placeholder="Como prefere ser chamado?" id="inp-name" value="${currentUser.name||''}" oninput="currentUser.name=this.value"/>
     </div>
-    <div class="wa-note">
-      <div class="wa-icon">📱</div>
-      <div class="wa-text"><strong>Confirmação via WhatsApp</strong><span>Ao confirmar, abriremos o WhatsApp com sua mensagem</span></div>
-    </div>
-    <button class="btn btn-wa" onclick="confirmBooking()"><span style="font-size:18px">✓</span> Confirmar e enviar WhatsApp</button>
+    <button class="btn btn-gold" onclick="confirmBooking()"><span style="font-size:18px">✓</span> Confirmar agendamento</button>
     <div style="margin-top:8px"><button class="btn btn-outline" onclick="goStep(3)">← Voltar</button></div>
   </div>`;
 }
@@ -704,10 +727,9 @@ async function confirmBooking(){
     await fdb.collection('users').doc(currentUser.phone).update({name});
     const code=docRef.id.slice(-6).toUpperCase();
     // Notifica barbeiro automaticamente
-    await notifyBarber({name,phone:currentUser.phone,svc:sv.name,dateStr:ds,time:S.time,price:sv.price,code,barberId:b.id});
-    const msg=encodeURIComponent(`✦ *Barber App — Confirmação*\n\nOlá, *${name}*! Seu agendamento foi confirmado:\n\n• Barbeiro: ${b.name}\n• Serviço: ${sv.name}\n• Data: ${ds} às ${S.time}\n• Código: *${code}*\n\nChegue 5 minutos antes. Até lá! 💈`);
-    window.open('https://wa.me/'+currentUser.phone+'?text='+msg,'_blank');
-    S.step=5;S.bookingCode=code;renderStep();
+    showLoading('Notificando barbeiro...');
+    const notifOk=await notifyBarber({name,phone:currentUser.phone,svc:sv.name,dateStr:ds,time:S.time,price:sv.price,code,barberId:b.id});
+    S.step=5;S.bookingCode=code;S.notifOk=notifOk;renderStep();
   }catch(e){alert('Erro ao salvar. Verifique sua conexão.');console.error(e);}
   hideLoading();
 }
@@ -715,14 +737,18 @@ async function confirmBooking(){
 // ── SUCESSO ──
 function stDone(){
   const code=S.bookingCode;
+  const notifStatus=S.notifOk===true
+    ? `<div style="display:flex;align-items:center;gap:8px;background:rgba(61,170,110,0.08);border:0.5px solid rgba(61,170,110,0.2);border-radius:10px;padding:10px 14px;margin-bottom:12px"><span style="font-size:16px">✅</span><span style="font-size:12px;color:var(--green)">Barbeiro notificado automaticamente!</span></div>`
+    : '';
   return`<div class="success-body animate-in">
     <div class="suc-ring">✓</div>
     <div class="suc-title">Agendado!</div>
-    <div class="suc-sub">Seu horário está confirmado.<br>O WhatsApp foi aberto com a confirmação.</div>
+    <div class="suc-sub">Seu horário está confirmado.<br>Guarde o código abaixo.</div>
     <div class="code-box">${code}</div>
+    ${notifStatus}
     <div class="wa-note" style="text-align:left">
-      <div class="wa-icon">📱</div>
-      <div class="wa-text"><strong>Mensagem enviada</strong><span>Mostre este código ao chegar</span></div>
+      <div class="wa-icon">🎫</div>
+      <div class="wa-text"><strong>Confirmado no app</strong><span>Mostre este código ao chegar na barbearia</span></div>
     </div>
     <button class="btn btn-gold" onclick="newBooking()" style="margin-bottom:8px">Novo agendamento</button>
     <button class="btn btn-outline" onclick="switchTab('my')">Ver meus agendamentos</button>
