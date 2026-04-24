@@ -419,7 +419,7 @@ function startKeepAlive(){
 async function checkAndSendReminders(){
   if(!notifyConfig.remindClientsOnDay) return;
   const now=new Date();
-  const todayStr=now.toISOString().slice(0,10);
+  const todayStr=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
   const hour=now.getHours();
   // Só envia entre 7h e 9h, e apenas uma vez por dia
   if(hour<7||hour>=9) return;
@@ -432,7 +432,7 @@ async function checkAndSendReminders(){
 // ── LEMBRETES DO DIA ──
 async function sendRemindersToday(){
   if(!notifyConfig.remindClientsOnDay) return;
-  const today=new Date().toISOString().slice(0,10);
+  const today=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
   try{
     // Só 2 filtros = sem necessidade de índice composto no Firestore
     const snap=await fdb.collection('bookings')
@@ -887,7 +887,7 @@ function admAgenda(container){
 
   function renderList(){
     const now=new Date();
-    const today=now.toISOString().slice(0,10);
+    const today=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
     const nowTime=now.toTimeString().slice(0,5);
     let list=[...allBks];
     if(currentFilter==='today')list=list.filter(b=>b.date===today);
@@ -925,7 +925,7 @@ function admAgenda(container){
   }
 
   admUnsubscribe=fdb.collection('bookings').where('status','==','confirmed').onSnapshot(snap=>{
-    const now=new Date(),nowStr=now.toISOString().slice(0,10);
+    const now=new Date(),nowStr=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'});
     allBks=snap.docs.map(d=>{
       const data=d.data();
       // _isPast considera janela de 20 min para stats
