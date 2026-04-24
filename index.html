@@ -356,12 +356,16 @@ function sairApp(){
 
 // ── NOTIFICAÇÃO WHATSAPP AO BARBEIRO ──
 async function notifyBarber(bkData){
-  if(!notifyConfig.notifyBarberOnBook) return;
+  if(!notifyConfig.notifyBarberOnBook) return {ok:false,reason:'disabled'};
   const barberObj=DB.barbers.find(x=>x.id===bkData.barberId)||{};
   const phone=(barberObj.phone||notifyConfig.barberPhone||'').replace(/\D/g,'');
-  if(!phone) return;
   const msg=`✦ *BARBER APP — Novo Agendamento*\n\nNovo cliente marcou horário! 💈\n\n👤 *${bkData.name}*\n📱 ${bkData.phone.replace(/^55/,'')}\n✂ ${bkData.svc}\n📅 ${bkData.dateStr} às ${bkData.time}\n💰 R$${bkData.price}\n🔖 Cód: ${bkData.code}`;
-  await sendViaWAServer(phone,msg);
+  if(!phone){
+    console.warn('[WA] Telefone do barbeiro não cadastrado. Cadastre em Admin > Barbeiros.');
+    return {ok:false,reason:'no_phone',msg};
+  }
+  const ok=await sendViaWAServer(phone,msg);
+  return {ok, phone, msg, reason: ok?'sent':'server_error'};
 }
 
 // ── ENVIO VIA SERVIDOR PRÓPRIO ──
@@ -750,8 +754,8 @@ async function confirmBooking(){
     const code=docRef.id.slice(-6).toUpperCase();
     // Notifica barbeiro automaticamente
     showLoading('Notificando barbeiro...');
-    const notifOk=await notifyBarber({name,phone:currentUser.phone,svc:sv.name,dateStr:ds,time:S.time,price:sv.price,code,barberId:b.id});
-    S.step=5;S.bookingCode=code;S.notifOk=notifOk;renderStep();
+    const notifResult=await notifyBarber({name,phone:currentUser.phone,svc:sv.name,dateStr:ds,time:S.time,price:sv.price,code,barberId:b.id});
+    S.step=5;S.bookingCode=code;S.notifResult=notifResult;renderStep();
   }catch(e){alert('Erro ao salvar. Verifique sua conexão.');console.error(e);}
   hideLoading();
 }
@@ -759,9 +763,22 @@ async function confirmBooking(){
 // ── SUCESSO ──
 function stDone(){
   const code=S.bookingCode;
-  const notifStatus=S.notifOk===true
-    ? `<div style="display:flex;align-items:center;gap:8px;background:rgba(61,170,110,0.08);border:0.5px solid rgba(61,170,110,0.2);border-radius:10px;padding:10px 14px;margin-bottom:12px"><span style="font-size:16px">✅</span><span style="font-size:12px;color:var(--green)">Barbeiro notificado automaticamente!</span></div>`
-    : '';
+  const nr=S.notifResult||{};
+  let notifStatus='';
+  if(nr.ok){
+    notifStatus=`<div style="display:flex;align-items:center;gap:8px;background:rgba(61,170,110,0.08);border:0.5px solid rgba(61,170,110,0.2);border-radius:10px;padding:10px 14px;margin-bottom:12px"><span style="font-size:16px">✅</span><span style="font-size:12px;color:var(--green)">Barbeiro notificado automaticamente!</span></div>`;
+  } else if(nr.reason==='no_phone'||nr.reason==='server_error'){
+    const waPhone=nr.phone||(notifyConfig.barberPhone||'').replace(/\D/g,'');
+    const waMsg=encodeURIComponent(nr.msg||'Novo agendamento no Barber App!');
+    const waLink=waPhone?`https://wa.me/55${waPhone}?text=${waMsg}`:'';
+    notifStatus=`<div style="display:flex;align-items:center;gap:8px;background:rgba(255,180,0,0.07);border:0.5px solid rgba(255,180,0,0.25);border-radius:10px;padding:10px 14px;margin-bottom:12px">
+      <span style="font-size:16px">⚠️</span>
+      <div style="font-size:12px;color:#f0a500;line-height:1.5">
+        ${nr.reason==='no_phone'?'Telefone do barbeiro não cadastrado.':'Servidor WA offline.'}
+        ${waLink?`<br><a href="${waLink}" target="_blank" style="color:#25D366;font-weight:600;text-decoration:none">📲 Avisar barbeiro pelo WhatsApp</a>`:'<br>Avise o barbeiro manualmente.'}
+      </div>
+    </div>`;
+  }
   return`<div class="success-body animate-in">
     <div class="suc-ring">✓</div>
     <div class="suc-title">Agendado!</div>
